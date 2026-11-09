@@ -113,6 +113,8 @@
   .archive-controls .search{width:100%}
   .archive-controls select{width:100%;min-height:44px;padding:.65rem .65rem;border:1px solid #ad9b84;border-radius:.5rem;background:var(--white);color:var(--ink);font:inherit}
   .recipe-categories{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.2rem}
+  .recipe-head .recipe-categories{margin-top:.55rem}
+  #meta:empty{display:none}
   .recipe-category{display:inline-block;padding:.13rem .42rem;border-radius:.25rem;background:#ffedc4;color:#63281e;font-size:.73rem;font-weight:700}
   .category-group{min-width:0;border:1px solid var(--rule);border-radius:.55rem;margin:0;padding:.5rem .7rem .65rem}
   .category-group legend{padding:0 .3rem;font-weight:750}
@@ -178,7 +180,11 @@
   <article id="recipe" hidden aria-labelledby="title">
     <div class="screen recipe-top"><button class="quiet recipe-close-top" type="button" id="close-top" aria-label="Chiudi scheda ricetta">×</button></div>
     <header class="recipe-head">
-      <div><h2 id="title" tabindex="-1"></h2><p id="meta"></p></div>
+      <div>
+        <h2 id="title" tabindex="-1"></h2>
+        <p id="meta"></p>
+        <div id="recipe-categories" class="recipe-categories" hidden></div>
+      </div>
       <img id="photo" alt="" hidden>
     </header>
     <p id="notice" hidden></p>
@@ -345,6 +351,17 @@
   const categoriesOf = recipe => Array.isArray(recipe.categorie)
     ? recipe.categorie.filter(category => categoryLabels.has(category))
     : [];
+
+  function renderCategories(container, recipe) {
+    const chips = categoriesOf(recipe).map(category => {
+      const chip = document.createElement('span');
+      chip.className = 'recipe-category';
+      chip.textContent = categoryLabels.get(category);
+      return chip;
+    });
+    container.replaceChildren(...chips);
+    container.hidden = !chips.length;
+  }
 
   for (const [groupLabel, categories] of categoryGroups) {
     const filterGroup = document.createElement('optgroup');
@@ -514,18 +531,10 @@
       source.className = 'entry-source';
       source.textContent = recipe.author || (recipe.blog ? 'Blog di cucina' : 'Video');
       info.append(label, source);
-      const categories = categoriesOf(recipe);
-      if (categories.length) {
-        const chips = document.createElement('span');
-        chips.className = 'recipe-categories';
-        for (const category of categories) {
-          const chip = document.createElement('span');
-          chip.className = 'recipe-category';
-          chip.textContent = categoryLabels.get(category);
-          chips.append(chip);
-        }
-        info.append(chips);
-      }
+      const chips = document.createElement('span');
+      chips.className = 'recipe-categories';
+      renderCategories(chips, recipe);
+      info.append(chips);
       open.append(thumb, info);
       open.addEventListener('click', () => render(recipe, key, open, true));
       const remove = document.createElement('button');
@@ -572,9 +581,9 @@
     const portions = recipe.porzioni ? String(recipe.porzioni) : '';
     byId('meta').textContent = [
       recipe.author, portions && (/porzion|person/i.test(portions) ? portions : portions + ' porzioni'),
-      ...categoriesOf(recipe).map(category => categoryLabels.get(category)),
       formatTimes(recipe.tempi),
     ].filter(Boolean).join('  /  ');
+    renderCategories(byId('recipe-categories'), recipe);
     const photo = byId('photo');
     photo.hidden = !recipe.image;
     photo.removeAttribute('src');
