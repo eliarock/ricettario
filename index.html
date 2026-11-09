@@ -206,7 +206,7 @@
       <div class="editor-fields">
         <div><label for="edit-title">Titolo</label><input id="edit-title" required maxlength="250"></div>
         <div id="edit-categories"></div>
-        <fieldset class="photo-editor">
+        <fieldset class="photo-editor" id="edit-photo">
           <legend>Foto della ricetta</legend>
           <img id="edit-photo-preview" class="photo-preview" alt="Anteprima foto" hidden>
           <div class="photo-inputs">
@@ -214,6 +214,7 @@
             <div><label for="edit-photo-url">Oppure incolla il link diretto alla foto</label><input id="edit-photo-url" type="url" placeholder="https://…" maxlength="5000"></div>
           </div>
           <div class="recipe-actions">
+            <button class="quiet" id="edit-photo-paste" type="button">Incolla foto</button>
             <button class="quiet" id="edit-photo-remove" type="button" hidden>Rimuovi foto</button>
             <a id="edit-photo-search" target="_blank" rel="noopener noreferrer">Cerca una foto simile</a>
           </div>
@@ -664,6 +665,7 @@
   const photoUrl = byId('edit-photo-url');
   const photoPreview = byId('edit-photo-preview');
   const photoRemove = byId('edit-photo-remove');
+  const photoPaste = byId('edit-photo-paste');
   const photoMessage = byId('photo-message');
   let uploadedPhoto = null;
 
@@ -740,24 +742,59 @@
     refreshPhotoEditor();
     photoUrl.focus();
   });
-  photoFile.addEventListener('change', async () => {
-    const file = photoFile.files[0];
-    if (!file || editorSave.disabled) return;
+  async function prepareEditorPhoto(photo, pasted = false) {
     editorSave.disabled = editorCancel.disabled = true;
-    photoFile.disabled = photoUrl.disabled = photoRemove.disabled = true;
-    photoFeedback('Sto preparando la foto…');
+    photoFile.disabled = photoUrl.disabled = photoRemove.disabled = photoPaste.disabled = true;
+    photoFeedback(pasted ? 'Sto incollando la foto…' : 'Sto preparando la foto…');
     try {
-      uploadedPhoto = await resizePhoto(file);
+      uploadedPhoto = await resizePhoto(await photo);
       photoUrl.value = '';
+      if (pasted) photoFile.value = '';
       refreshPhotoEditor();
-      photoFeedback('');
+      photoFeedback(pasted ? 'Foto incollata. Controlla l’anteprima.' : '');
     } catch (error) {
-      photoFile.value = '';
+      if (!pasted) photoFile.value = '';
       photoFeedback(error.message);
     } finally {
       editorSave.disabled = editorCancel.disabled = false;
-      photoFile.disabled = photoUrl.disabled = photoRemove.disabled = false;
+      photoFile.disabled = photoUrl.disabled = photoRemove.disabled = photoPaste.disabled = false;
     }
+  }
+
+  async function readClipboardPhoto() {
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find(type => type.startsWith('image/'));
+        if (type) return await item.getType(type);
+      }
+    } catch {
+      throw new Error('Consenti di incollare la foto oppure caricala dal dispositivo.');
+    }
+    throw new Error('Negli appunti non c’è una foto. Usa «Copia immagine» e riprova.');
+  }
+
+  photoPaste.addEventListener('click', () => {
+    if (editorSave.disabled) return;
+    if (!navigator.clipboard?.read) {
+      photoFeedback('Usa Incolla nel campo qui sopra oppure carica la foto dal dispositivo.');
+      photoUrl.focus();
+      return;
+    }
+    prepareEditorPhoto(readClipboardPhoto(), true);
+  });
+
+  byId('edit-photo').addEventListener('paste', event => {
+    const data = event.clipboardData;
+    const photo = [...(data?.files || [])].find(file => file.type.startsWith('image/')) ||
+      [...(data?.items || [])].find(item => item.kind === 'file' && item.type.startsWith('image/'))?.getAsFile();
+    if (!photo) return;
+    event.preventDefault();
+    if (!editorSave.disabled) prepareEditorPhoto(photo, true);
+  });
+
+  photoFile.addEventListener('change', () => {
+    const file = photoFile.files[0];
+    if (file && !editorSave.disabled) prepareEditorPhoto(file);
   });
 
   byId('edit').addEventListener('click', () => {
