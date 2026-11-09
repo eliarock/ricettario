@@ -109,6 +109,17 @@
   .photo-editor .recipe-actions{margin-top:.55rem}
   .photo-editor input[type=file]{padding:.5rem;font-size:.9rem}
   .photo-editor #photo-message{margin:.4rem 0 0;font-size:.85rem}
+  .archive-controls{display:grid;grid-template-columns:minmax(9rem,1fr) minmax(9rem,.85fr);gap:.75rem;width:min(100%,34rem)}
+  .archive-controls .search{width:100%}
+  .archive-controls select{width:100%;min-height:44px;padding:.65rem .65rem;border:1px solid #ad9b84;border-radius:.5rem;background:var(--white);color:var(--ink);font:inherit}
+  .recipe-categories{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.2rem}
+  .recipe-category{display:inline-block;padding:.13rem .42rem;border-radius:.25rem;background:#ffedc4;color:#63281e;font-size:.73rem;font-weight:700}
+  .category-group{min-width:0;border:1px solid var(--rule);border-radius:.55rem;margin:0;padding:.5rem .7rem .65rem}
+  .category-group legend{padding:0 .3rem;font-weight:750}
+  .category-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.1rem .65rem}
+  .category-option{display:flex;align-items:center;gap:.45rem;margin:0;min-height:38px}
+  .category-option input{width:1rem;height:1rem;flex:none;accent-color:var(--accent)}
+  @media(max-width:30rem){.archive-controls{grid-template-columns:1fr;gap:.5rem}}
 </style>
 </head>
 <body>
@@ -174,7 +185,10 @@
   <section id="archive" class="screen archive" aria-labelledby="archive-title" hidden>
     <header class="archive-head">
       <div><h2 id="archive-title" tabindex="-1">Le mie ricette</h2><p id="count"></p></div>
-      <div class="search" id="search-wrap" hidden><label for="search">Cerca nell’archivio</label><input type="search" id="search" placeholder="Titolo, autore, ingrediente…"></div>
+      <div class="archive-controls" id="search-wrap" hidden>
+        <div class="search"><label for="search">Cerca nell’archivio</label><input type="search" id="search" placeholder="Titolo, autore, ingrediente…"></div>
+        <div><label for="category-filter">Categoria</label><select id="category-filter"><option value="">Tutte le categorie</option><option value="uncategorized">Senza categoria</option></select></div>
+      </div>
     </header>
     <p class="archive-empty" id="archive-empty"></p>
     <ul class="archive-list" id="archive-list"></ul>
@@ -188,6 +202,7 @@
       <p>Scrivi un ingrediente o un passaggio per riga.</p>
       <div class="editor-fields">
         <div><label for="edit-title">Titolo</label><input id="edit-title" required maxlength="250"></div>
+        <div id="edit-categories"></div>
         <fieldset class="photo-editor">
           <legend>Foto della ricetta</legend>
           <img id="edit-photo-preview" class="photo-preview" alt="Anteprima foto" hidden>
@@ -247,6 +262,104 @@
   const editorCancel = byId('editor-cancel');
   const editorError = byId('editor-error');
   const search = byId('search');
+  const categoryFilter = byId('category-filter');
+  const categoryGroups = [
+    [
+      "Tipo di piatto",
+      [
+        [
+          "antipasti",
+          "Antipasti e aperitivi"
+        ],
+        [
+          "primi",
+          "Primi"
+        ],
+        [
+          "secondi",
+          "Secondi"
+        ],
+        [
+          "contorni",
+          "Contorni"
+        ],
+        [
+          "piatti-unici",
+          "Piatti unici"
+        ],
+        [
+          "pane",
+          "Pane, pizze e focacce"
+        ],
+        [
+          "snack",
+          "Snack e spuntini"
+        ],
+        [
+          "dolci",
+          "Dolci"
+        ],
+        [
+          "salse",
+          "Salse e condimenti"
+        ]
+      ]
+    ],
+    [
+      "Caratteristiche",
+      [
+        [
+          "vegetariano",
+          "Vegetariano"
+        ],
+        [
+          "vegano",
+          "Vegano"
+        ],
+        [
+          "friggitrice",
+          "Friggitrice ad aria"
+        ],
+        [
+          "veloce",
+          "Veloce"
+        ]
+      ]
+    ]
+  ];
+  const categoryLabels = new Map(categoryGroups.flatMap(([, categories]) => categories));
+  const categoriesOf = recipe => Array.isArray(recipe.categorie)
+    ? recipe.categorie.filter(category => categoryLabels.has(category))
+    : [];
+
+  for (const [groupLabel, categories] of categoryGroups) {
+    const filterGroup = document.createElement('optgroup');
+    filterGroup.label = groupLabel;
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'category-group';
+    const legend = document.createElement('legend');
+    legend.textContent = groupLabel;
+    const options = document.createElement('div');
+    options.className = 'category-options';
+    for (const [value, label] of categories) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      filterGroup.append(option);
+      const choice = document.createElement('label');
+      choice.className = 'category-option';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.name = 'recipe-category';
+      checkbox.value = value;
+      choice.append(checkbox, label);
+      options.append(choice);
+    }
+    categoryFilter.append(filterGroup);
+    fieldset.append(legend, options);
+    byId('edit-categories').append(fieldset);
+  }
+  const categoryChoices = [...byId('edit-categories').querySelectorAll('input')];
   const featuredButton = byId('feature');
   const featuredImage = byId('feature-image');
   let featuredEntry;
@@ -337,13 +450,23 @@
       try { migrateButton.hidden = !readArchive().length; } catch { /* Online archive still works. */ }
     }
     migrateButton.disabled = archiveBusy;
-    count.textContent = entries.length === 1 ? '1 ricetta salvata' : entries.length + ' ricette salvate';
     byId('search-wrap').hidden = !entries.length;
-    if (!entries.length) search.value = '';
+    if (!entries.length) {
+      search.value = '';
+      categoryFilter.value = '';
+    }
     const query = search.value.trim().toLocaleLowerCase('it');
-    const filtered = entries.filter(({recipe}) => [recipe.titolo, recipe.author, recipe.descrizione,
-      ...(Array.isArray(recipe.ingredienti) ? recipe.ingredienti : [])]
-      .some(value => String(value || '').toLocaleLowerCase('it').includes(query)));
+    const selected = categoryFilter.value;
+    const filtered = entries.filter(({recipe}) => {
+      const categories = categoriesOf(recipe);
+      if (selected === 'uncategorized' && categories.length) return false;
+      if (selected && selected !== 'uncategorized' && !categories.includes(selected)) return false;
+      const fields = [recipe.titolo, recipe.author, recipe.descrizione,
+        ...(Array.isArray(recipe.ingredienti) ? recipe.ingredienti : [])];
+      return !query || fields.some(value => String(value || '').toLocaleLowerCase('it').includes(query));
+    });
+    count.textContent = query || selected ? filtered.length + ' di ' + entries.length + ' ricette' :
+      entries.length === 1 ? '1 ricetta salvata' : entries.length + ' ricette salvate';
     empty.hidden = !!filtered.length;
     empty.textContent = entries.length
       ? 'Nessuna ricetta corrisponde alla ricerca.'
@@ -377,6 +500,18 @@
       source.className = 'entry-source';
       source.textContent = recipe.author || (recipe.blog ? 'Blog di cucina' : 'Video');
       info.append(label, source);
+      const categories = categoriesOf(recipe);
+      if (categories.length) {
+        const chips = document.createElement('span');
+        chips.className = 'recipe-categories';
+        for (const category of categories) {
+          const chip = document.createElement('span');
+          chip.className = 'recipe-category';
+          chip.textContent = categoryLabels.get(category);
+          chips.append(chip);
+        }
+        info.append(chips);
+      }
       open.append(thumb, info);
       open.addEventListener('click', () => render(recipe, key, open, true));
       const remove = document.createElement('button');
@@ -465,6 +600,7 @@
     loadArchive();
     retryArchive.addEventListener('click', loadArchive);
     search.addEventListener('input', renderArchive);
+    categoryFilter.addEventListener('change', renderArchive);
     window.addEventListener('storage', event => {
       if (event.key === storageKey || event.key === null) renderArchive();
     });
@@ -645,6 +781,8 @@
     if (!current || archiveBusy || editor.open) return;
     const {recipe} = current;
     byId('edit-title').value = recipe.titolo || '';
+    const selectedCategories = categoriesOf(recipe);
+    for (const choice of categoryChoices) choice.checked = selectedCategories.includes(choice.value);
     byId('edit-portions').value = String(recipe.porzioni ?? '');
     byId('edit-times').value = formatTimes(recipe.tempi);
     byId('edit-ingredients').value = linesForEdit(recipe.ingredienti);
@@ -690,6 +828,7 @@
     const recipe = {
       ...entry.recipe,
       titolo: title,
+      categorie: categoryChoices.filter(choice => choice.checked).map(choice => choice.value),
       porzioni: byId('edit-portions').value.trim() || null,
       tempi: times === formatTimes(entry.recipe.tempi).trim() ? entry.recipe.tempi : times || null,
       ingredienti: editedLines('edit-ingredients'),
