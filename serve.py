@@ -179,10 +179,20 @@ class Handler(BaseHTTPRequestHandler):
         except (KeyError, TypeError, ValueError, AttributeError):
             self.reply(400, b'{"error":"Inserisci un link HTTPS valido."}')
             return
+        if RENDER and not os.getenv("OPENAI_API_KEY"):
+            self.reply(503, b'{"error":"Per importare ricette in italiano configura OPENAI_API_KEY su Render."}')
+            return
         try:
-            recipe = preview(import_recipe(url))
+            record = import_recipe(url)
         except (OSError, ValueError, KeyError, TypeError):
             self.reply(422, b'{"error":"Importazione fallita. Controlla il link e riprova."}')
+            return
+        try:
+            recipe = preview(record)
+        except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
+            self.log_error("Traduzione: %s", type(error).__name__)
+            message = "Ricetta trovata, ma la traduzione in italiano non è riuscita. Riprova o controlla la configurazione API su Render."
+            self.reply(502, json.dumps({"error": message}).encode())
             return
         self.reply(200, json.dumps(recipe, ensure_ascii=False).encode())
 
