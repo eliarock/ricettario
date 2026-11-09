@@ -3,7 +3,7 @@ services:
     name: ricettario-elia
     runtime: python
     plan: free
-    buildCommand: python -m py_compile importer.py serve.py
+    buildCommand: pip install -r requirements.txt && python -m py_compile importer.py serve.py archive_db.py
     startCommand: python serve.py
     healthCheckPath: /health
     envVars:

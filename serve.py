@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import archive_db
 from importer import import_recipe, translate
 
 RENDER = os.environ.get("RENDER") == "true"
@@ -96,13 +97,70 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self.authorized():
             return
+        if self.path == "/api/archive":
+            self.archive_request()
+            return
         if self.path != "/":
             self.send_error(404)
             return
         self.reply(200, INDEX.read_bytes(), "text/html; charset=utf-8")
 
+    def archive_request(self):
+        if not archive_db.DATABASE_URL:
+            self.reply(200, b'{"configured":false}')
+            return
+        try:
+            if self.command == "POST":
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 4 * 1024 * 1024:
+                    raise ValueError
+                payload = json.loads(self.rfile.read(length))
+                action = payload["action"]
+                if action == "remove":
+                    key = payload["key"]
+                    if not isinstance(key, str) or not 0 < len(key) <= 2048:
+                        raise ValueError
+                elif action in {"save", "migrate"}:
+                    entries = payload["entries"]
+                    if not isinstance(entries, list) or not entries or (action == "save" and len(entries) != 1):
+                        raise ValueError
+                    for entry in entries:
+                        key = entry["key"]
+                        recipe = entry["recipe"]
+                        if not isinstance(key, str) or not 0 < len(key) <= 2048 or not isinstance(recipe, dict):
+                            raise ValueError
+                        if not isinstance(recipe.get("titolo") or "Ricetta senza titolo", str):
+                            raise ValueError
+                else:
+                    raise ValueError
+        except (KeyError, TypeError, ValueError):
+            self.reply(400, b'{"error":"Dati archivio non validi."}')
+            return
+
+        try:
+            if self.command == "POST":
+                transferred = []
+                if action == "remove":
+                    archive_db.remove_recipe(key)
+                else:
+                    transferred = archive_db.save_recipes(entries, replace=action == "save")
+                self.reply(200, json.dumps({"configured": True, "transferred": transferred}).encode())
+                return
+            entries = archive_db.list_recipes()
+            self.reply(200, json.dumps({"configured": True, "entries": entries}).encode())
+        except Exception as error:
+            # Database exceptions can contain connection parameters. Log only the type.
+            self.log_error("Archivio: %s", type(error).__name__)
+            self.reply(503, b'{"error":"Archivio online non disponibile. Riprova tra poco."}')
+
     def do_POST(self):
         if not self.authorized():
+            return
+        if self.path == "/api/archive":
+            if self.headers.get("Origin") != ORIGIN or self.headers.get_content_type() != "application/json":
+                self.send_error(403)
+                return
+            self.archive_request()
             return
         if self.path != "/api/import":
             self.send_error(404)

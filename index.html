@@ -141,7 +141,9 @@
     </header>
     <p class="archive-empty" id="archive-empty"></p>
     <ul class="archive-list" id="archive-list"></ul>
-    <p id="archive-note">Le ricette sono salvate in questo browser.</p>
+    <p id="archive-note" role="status">Caricamento archivio…</p>
+    <button class="quiet" type="button" id="migrate" hidden>Trasferisci le ricette di questo browser</button>
+    <button class="quiet" type="button" id="retry-archive" hidden>Ricarica archivio</button>
   </section>
 </main>
 <script>
@@ -160,6 +162,12 @@
   const storageKey = 'ricettario.archive.v1';
   let current;
   let returnFocus;
+  let archiveMode = 'loading';
+  let onlineEntries = [];
+  let archiveBusy = false;
+  const archiveNote = byId('archive-note');
+  const migrateButton = byId('migrate');
+  const retryArchive = byId('retry-archive');
   const feedback = byId('recipe-feedback');
   const saveButton = byId('save');
   const search = byId('search');
@@ -171,21 +179,58 @@
     return data;
   }
 
+  async function archiveRequest(payload) {
+    const response = await fetch('/api/archive', payload ? {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload),
+    } : {});
+    if (!response.ok) throw new Error('Archivio online non disponibile. Riprova tra poco.');
+    const data = await response.json();
+    if (payload && !data.configured) throw new Error('Archivio online non disponibile.');
+    return data;
+  }
+
+  async function loadArchive() {
+    try {
+      const data = await archiveRequest();
+      archiveMode = data.configured ? 'online' : 'local';
+      onlineEntries = data.entries || [];
+    } catch {
+      archiveMode = 'error';
+    }
+    renderArchive();
+  }
+
   function renderArchive() {
     const list = byId('archive-list');
     const empty = byId('archive-empty');
     const count = byId('count');
     list.replaceChildren();
     let entries;
+    retryArchive.hidden = archiveMode !== 'error';
+    migrateButton.hidden = true;
+    archiveNote.textContent = archiveMode === 'online' ? 'Archivio sincronizzato tra i dispositivi.' :
+      archiveMode === 'local' ? 'Le ricette sono salvate in questo browser.' : '';
+    if (archiveMode === 'loading' || archiveMode === 'error') {
+      saveButton.disabled = true;
+      count.textContent = '';
+      byId('search-wrap').hidden = true;
+      empty.hidden = false;
+      empty.textContent = archiveMode === 'loading' ? 'Caricamento archivio…' : 'Archivio online non disponibile.';
+      return;
+    }
     try {
-      entries = readArchive();
+      entries = archiveMode === 'online' ? onlineEntries : readArchive();
     } catch {
       empty.hidden = false;
       empty.textContent = 'L’archivio di questo browser non è disponibile.';
       saveButton.disabled = true;
       return;
     }
-    saveButton.disabled = false;
+    saveButton.disabled = archiveBusy;
+    if (archiveMode === 'online') {
+      try { migrateButton.hidden = !readArchive().length; } catch { /* Online archive still works. */ }
+    }
+    migrateButton.disabled = archiveBusy;
     count.textContent = entries.length === 1 ? '1 ricetta salvata' : entries.length + ' ricette salvate';
     byId('search-wrap').hidden = !entries.length;
     if (!entries.length) search.value = '';
@@ -232,10 +277,15 @@
       remove.className = 'quiet remove';
       remove.textContent = 'Rimuovi';
       remove.setAttribute('aria-label', 'Rimuovi ' + title);
-      remove.addEventListener('click', () => {
-        if (!window.confirm('Rimuovere «' + title + '» dall’archivio?')) return;
+      remove.disabled = archiveBusy;
+      remove.addEventListener('click', async () => {
+        if (archiveBusy || !window.confirm('Rimuovere «' + title + '» dall’archivio?')) return;
         try {
-          localStorage.setItem(storageKey, JSON.stringify(readArchive().filter(item => item.key !== key)));
+          if (archiveMode === 'online') {
+            await mutateOnline({action:'remove', key});
+          } else {
+            localStorage.setItem(storageKey, JSON.stringify(readArchive().filter(item => item.key !== key)));
+          }
           if (current?.key === key) closeRecipe(false);
           renderArchive();
           byId('archive-title').focus();
@@ -301,23 +351,65 @@
     byId('intro').textContent = 'Accedi per importare una ricetta da un Reel o da un blog di cucina.';
   } else {
     byId('archive').hidden = false;
-    renderArchive();
+    loadArchive();
+    retryArchive.addEventListener('click', loadArchive);
     search.addEventListener('input', renderArchive);
     window.addEventListener('storage', event => {
       if (event.key === storageKey || event.key === null) renderArchive();
     });
   }
-  saveButton.addEventListener('click', () => {
-    if (!current) return;
+  async function mutateOnline(payload) {
+    archiveBusy = true;
+    renderArchive();
     try {
-      const remaining = readArchive().filter(item => item.key !== current.key);
-      localStorage.setItem(storageKey, JSON.stringify([current, ...remaining]));
+      const result = await archiveRequest(payload);
+      if (payload.action === 'migrate') {
+        // Keep any recipe added locally while the transfer was running.
+        const transferred = new Set(result.transferred || []);
+        const sent = new Map(payload.entries.filter(entry => transferred.has(entry.key))
+          .map(entry => [entry.key, JSON.stringify(entry)]));
+        localStorage.setItem(storageKey, JSON.stringify(readArchive().filter(
+          entry => sent.get(entry.key) !== JSON.stringify(entry)
+        )));
+      }
+      await loadArchive();
+    } finally {
+      archiveBusy = false;
       renderArchive();
+    }
+  }
+
+  migrateButton.addEventListener('click', async () => {
+    if (archiveBusy) return;
+    try {
+      const entries = readArchive();
+      if (!entries.length) return;
+      await mutateOnline({action:'migrate', entries});
+      if (archiveMode === 'online') archiveNote.textContent = readArchive().length
+        ? 'Le versioni diverse da quelle online sono rimaste in questo browser.'
+        : 'Trasferimento completato.';
+    } catch {
+      archiveNote.textContent = 'Trasferimento non completato. Puoi riprovare.';
+    }
+  });
+
+  saveButton.addEventListener('click', async () => {
+    if (!current || archiveBusy || !['local','online'].includes(archiveMode)) return;
+    const entry = current;
+    try {
+      if (archiveMode === 'online') {
+        await mutateOnline({action:'save', entries:[entry]});
+      } else {
+        const remaining = readArchive().filter(item => item.key !== entry.key);
+        localStorage.setItem(storageKey, JSON.stringify([entry, ...remaining]));
+        renderArchive();
+      }
+      if (current !== entry) return;
       saveButton.hidden = true;
       feedback.textContent = 'Salvata nelle mie ricette.';
       byId('print').focus();
     } catch {
-      feedback.textContent = 'Impossibile salvare in questo browser. Controlla lo spazio disponibile.';
+      feedback.textContent = 'Impossibile salvare la ricetta. Riprova tra poco.';
     }
   });
   byId('close').addEventListener('click', () => closeRecipe());
