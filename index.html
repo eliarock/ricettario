@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ricettario personale</title>
+<title>Le ricette di Elia</title>
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -27,31 +27,19 @@
   h1,h2,h3{font-family:var(--serif);font-weight:normal;line-height:1.07;margin:0;text-wrap:balance}
   h2{font-size:clamp(2.2rem,5vw,3.7rem);letter-spacing:-.035em}
   h3{font-size:clamp(1.55rem,3vw,2rem)}
-  .mast{border-top:.35rem solid var(--accent);border-bottom:1px solid var(--rule);background:var(--white)}
-  .mast-inner{width:min(100% - 2rem,72rem);min-height:4.45rem;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:1rem}
-  .brand{display:inline-flex;gap:.6rem;align-items:center;color:var(--ink);text-decoration:none;font:1.65rem/1 var(--serif);letter-spacing:-.04em}
-  .brand-icon{display:grid;place-items:center;width:2.25rem;height:2.25rem;border-radius:50%;background:var(--gold);color:var(--dark)}
-  .brand-icon svg{width:1.4rem;height:1.4rem}
-  .mast nav{display:flex;flex-wrap:wrap;gap:.3rem 1rem}
-  .mast nav a{color:var(--ink);font-size:.87rem;font-weight:700;text-decoration:none;padding:.55rem .2rem}
-  .mast nav a:hover{text-decoration:underline}
-  main{width:min(100% - 2rem,72rem);margin:clamp(1rem,3vw,2.25rem) auto 4rem}
-  .import-panel{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(14rem,1fr);align-items:stretch;overflow:hidden;border:1px solid #edc985;border-radius:1rem;background:#ffedc4}
-  .hero-copy{padding:clamp(1.5rem,5vw,3.8rem);position:relative;z-index:1}
-  .hero-copy h1{font-size:clamp(2.8rem,6vw,5.65rem);letter-spacing:-.045em;color:#472018}
-  .intro{max-width:37ch;color:#5e4634;margin:.8rem 0 1.4rem}
-  .entry{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:.5rem}
-  #url{display:block;line-height:1.45;overflow-wrap:anywhere;resize:vertical}
+  .mast{border-top:.2rem solid var(--accent);padding:clamp(.7rem,2vw,1.4rem) 0 .25rem}
+  .mast h1{display:grid;justify-items:center}
+  .brand-logo{display:block;width:clamp(7.25rem,14vw,9.5rem);height:auto}
+  main{width:min(100% - 2rem,72rem);margin:clamp(.75rem,2vw,1.25rem) auto 4rem}
+  .import-panel{width:min(100%,44rem);margin-inline:auto;padding:clamp(1rem,3vw,1.75rem);border:1px solid #ead2a8;border-radius:1rem;background:#fff2d8}
+  .intro{max-width:60ch;color:#5e4634;margin:0 0 .85rem}
+  .entry{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:.6rem}
+  #url{display:block;line-height:1.45;overflow-wrap:anywhere;resize:vertical;caret-color:var(--accent)}
   .access{display:inline-flex;align-items:center;text-decoration:none}
-  #status{margin:.7rem 0 0;color:#5e4634}
+  #status{margin:.65rem 0 0;color:#5e4634}
   #status:empty,#meta:empty,#editor-error:empty,#recipe-feedback:empty{display:none}
-  .hero-media{min-height:19rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.85rem;padding:1.25rem;background:#efd5a6}
-  .hero-logo{display:block;width:min(100%,16rem);height:auto}
-  .feature{display:grid;grid-template-columns:3.25rem minmax(0,1fr);align-items:center;width:min(100%,19rem);padding:0;overflow:hidden;border:1px solid var(--rule);background:var(--white);color:var(--ink);text-align:left}
-  .feature:hover{background:#fff4dd}
-  .feature img{width:100%;aspect-ratio:1;object-fit:cover;object-position:50% 60%;display:block}
-  .feature span{display:block;padding:.45rem .65rem;font:1.05rem/1.2 var(--serif);overflow-wrap:anywhere}
-  .archive{margin-top:clamp(2.5rem,6vw,5rem);scroll-margin-top:1rem}
+  .archive{margin-top:clamp(1.65rem,4.5vw,3.5rem);scroll-margin-top:1rem}
+  #archive-title{font-size:clamp(1.85rem,4vw,3.1rem)}
   .archive-head{display:flex;align-items:end;justify-content:space-between;gap:1rem;border-bottom:1px solid var(--rule);padding-bottom:1rem}
   #count,#archive-note,.entry-source,#meta,#sources{color:var(--muted)}
   #count{margin:.35rem 0 0}
@@ -60,7 +48,7 @@
   .archive-item{display:flex;flex-direction:column;align-items:stretch;min-width:0;border:1px solid var(--rule);border-radius:.8rem;overflow:hidden;background:var(--white);box-shadow:0 4px 13px #432a1510}
   .archive-open{position:relative;display:grid;grid-template-rows:auto 1fr;min-width:0;padding:0;border:0;border-radius:0;background:transparent;text-align:left;color:var(--ink);flex:1}
   .archive-open:hover{background:#fff0d5}
-  .archive-open:focus-visible,.feature:focus-visible{outline-offset:-4px}
+  .archive-open:focus-visible{outline-offset:-4px}
   .thumb{position:relative;width:100%;aspect-ratio:16/10;display:grid;place-items:center;overflow:hidden;background:#f4d9ab;color:#7f3828;font:clamp(2.5rem,6vw,4.5rem) var(--serif)}
   .archive-item:nth-child(3n+2) .thumb{background:#dce4c9;color:#40533b}
   .archive-item:nth-child(3n+3) .thumb{background:#f3d6cc;color:#843b2d}
@@ -99,8 +87,26 @@
   .editor-form textarea{display:block;resize:vertical}
   .editor-form .recipe-actions{margin-top:1rem}
   .editor-form #editor-error{margin:0;color:var(--accent)}
-  @media(max-width:54rem){.archive-list{grid-template-columns:repeat(2,minmax(0,1fr))}.import-panel{grid-template-columns:minmax(0,1.35fr) minmax(10rem,.75fr)}}
-  @media(max-width:37rem){.mast-inner,main{width:calc(100% - 1.25rem)}.mast-inner{min-height:3.9rem}.brand{font-size:1.4rem}.brand-icon{width:1.85rem;height:1.85rem}.mast nav{gap:.3rem .55rem;flex-wrap:nowrap}.mast nav a{font-size:.77rem;white-space:nowrap}.mast nav a[href="#nuova-ricetta"]{display:none}.import-panel{grid-template-columns:1fr}.hero-media{min-height:0;flex-direction:row;padding:.8rem}.hero-logo{width:min(36%,8rem)}.feature{width:min(56%,19rem)}.feature span{font-size:.9rem}.hero-copy h1{font-size:clamp(2.75rem,10vw,4.2rem)}.entry,.recipe-head,.columns,.editor-meta{grid-template-columns:1fr}.archive-head{align-items:stretch;flex-direction:column}.search{width:100%}.archive-list{gap:.55rem}.thumb{aspect-ratio:4/5}.card-copy{padding:.7rem .6rem .45rem}.entry-title{font-size:1.12rem}.entry-source{font-size:.72rem}.archive-item .remove{margin:0 .2rem .3rem}.recipe-head img{order:-1}.columns section:last-child{padding:0}}
+  @media(max-width:54rem){
+    .archive-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media(max-width:45rem){
+    .archive-head{align-items:stretch;flex-direction:column;gap:.75rem}
+    .archive-summary{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:.2rem .75rem}
+    .archive-summary #count{margin:0;font-size:.85rem}
+  }
+  @media(max-width:37rem){
+    main{width:calc(100% - 1.5rem)}
+    .entry,.recipe-head,.columns,.editor-meta{grid-template-columns:1fr}
+    .archive-list{gap:.65rem;margin-top:.85rem}
+    .thumb{aspect-ratio:4/5}
+    .card-copy{padding:.7rem .6rem .45rem}
+    .entry-title{font-size:1.12rem}
+    .entry-source{font-size:.72rem}
+    .archive-item .remove{margin:0 .2rem .3rem;min-height:44px}
+    .recipe-head img{order:-1}
+    .columns section:last-child{padding:0}
+  }
   @media(max-width:65rem) and (max-height:36rem) and (orientation:landscape){.thumb{aspect-ratio:4/3}}
   @page{size:A4 portrait;margin:13mm}
   @media print{.screen{display:none!important}body,article{background:white;color:#111;font-size:10pt}main,article{width:auto;margin:0;padding:0;border:0;border-radius:0;box-shadow:none}h2{font-size:25pt}h3{font-size:15pt;break-after:avoid}.recipe-head{grid-template-columns:minmax(0,1fr) auto;gap:5mm;break-inside:avoid}.recipe-head img{order:0;width:auto;max-width:42mm;max-height:31mm}.columns{grid-template-columns:1fr 1.6fr;gap:8mm;margin-top:4mm}.columns section:first-child,.columns section:last-child{padding:0;background:white}.columns li{break-inside:avoid}#meta,#sources{font-size:9pt}#notice{background:white}}
@@ -111,8 +117,9 @@
   .photo-editor .recipe-actions{margin-top:.55rem}
   .photo-editor input[type=file]{padding:.5rem;font-size:.9rem}
   .photo-editor #photo-message{margin:.4rem 0 0;font-size:.85rem}
-  .archive-controls{display:grid;grid-template-columns:minmax(9rem,1fr) minmax(9rem,.85fr);gap:.75rem;width:min(100%,34rem)}
+  .archive-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;width:min(100%,32rem)}
   .archive-controls .search{width:100%}
+  .archive-controls input,.archive-controls select{height:3.125rem}
   .archive-controls select{width:100%;min-height:44px;padding:.65rem .65rem;border:1px solid #ad9b84;border-radius:.5rem;background:var(--white);color:var(--ink);font:inherit}
   .recipe-categories{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.2rem}
   .recipe-head .recipe-categories{margin-top:.55rem}
@@ -123,48 +130,35 @@
   .category-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.1rem .65rem}
   .category-option{display:flex;align-items:center;gap:.45rem;margin:0;min-height:38px}
   .category-option input{width:1rem;height:1rem;flex:none;accent-color:var(--accent)}
-  @media(max-width:30rem){.archive-controls{grid-template-columns:1fr;gap:.5rem}}
+  @media(max-width:23rem){.archive-controls{grid-template-columns:1fr;gap:.55rem}}
   .recipe-top{display:flex;justify-content:flex-end;margin:-.5rem -.5rem .35rem}
   .recipe-close-top{display:grid;place-items:center;width:44px;padding:0;font-size:1.5rem;line-height:1;border-color:var(--rule)}
   .caption-paste{margin-top:.65rem;color:#5e4634}
-  .caption-paste summary{cursor:pointer;font-size:.88rem;font-weight:700;width:fit-content}
+  .caption-paste summary{cursor:pointer;font-size:.88rem;font-weight:700;width:fit-content;padding:.35rem 0}
   .caption-paste label{margin-top:.55rem}
   .caption-paste textarea{display:block;resize:vertical}
 </style>
 </head>
 <body>
 <header class="mast screen" id="inizio">
-  <div class="mast-inner">
-    <a class="brand" href="#inizio" aria-label="Ricettario, inizio">
-      <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 3v5a3 3 0 0 0 6 0V3M8 3v18m9 0V3c-2 2-3 5-3 8h3"/></svg></span>
-      Ricettario
-    </a>
-    <nav id="main-nav" aria-label="Menu del ricettario"><a href="#nuova-ricetta">Importa ricetta</a><a href="#archive">Le mie ricette</a></nav>
-  </div>
+  <h1><img class="brand-logo" src="./logo-elia.webp" width="520" height="520" alt="Le ricette di Elia"></h1>
 </header>
 <main>
-  <section class="screen import-panel" id="nuova-ricetta" aria-labelledby="import-title">
-    <div class="hero-copy">
-      <h1 id="import-title">Il mio ricettario</h1>
-      <p id="intro" class="intro">Salva le ricette che vuoi provare. Incolla il link di un Reel, di un TikTok o di un blog di cucina.</p>
-      <form id="form">
-        <label for="url">Link della ricetta</label>
-        <div class="entry"><textarea id="url" rows="3" inputmode="url" enterkeyhint="go" autocomplete="url" spellcheck="false" maxlength="4096" placeholder="https://…" required></textarea><button id="import">Importa</button></div>
-        <details class="caption-paste" id="caption-paste">
-          <summary>Hai uno screenshot della descrizione?</summary>
-          <label for="caption-screenshots">Carica fino a 4 screenshot</label>
-          <input id="caption-screenshots" type="file" accept="image/*" multiple>
-          <label for="caption-input">Descrizione del video</label>
-          <textarea id="caption-input" rows="4" maxlength="12000" placeholder="Se hai già il testo, puoi incollarlo qui."></textarea>
-        </details>
-      </form>
-      <a id="access" class="access" href="https://ricettario-elia.onrender.com/" hidden>Accedi al ricettario</a>
-      <p id="status" role="status"></p>
-    </div>
-    <div class="hero-media">
-      <img class="hero-logo" src="./logo-elia.webp" width="520" height="520" alt="Le ricette di Elia">
-      <button type="button" id="feature" class="feature" hidden><img id="feature-image" alt=""><span id="feature-title"></span></button>
-    </div>
+  <section class="screen import-panel" id="nuova-ricetta" aria-label="Importa ricetta">
+    <p id="intro" class="intro">Incolla il link di un Reel, di un TikTok o di un blog di cucina.</p>
+    <form id="form">
+      <label for="url">Link della ricetta</label>
+      <div class="entry"><textarea id="url" rows="3" inputmode="url" enterkeyhint="go" autocomplete="url" spellcheck="false" maxlength="4096" placeholder="https://…" required></textarea><button id="import">Importa</button></div>
+      <details class="caption-paste" id="caption-paste">
+        <summary>Hai uno screenshot della descrizione?</summary>
+        <label for="caption-screenshots">Carica fino a 4 screenshot</label>
+        <input id="caption-screenshots" type="file" accept="image/*" multiple>
+        <label for="caption-input">Descrizione del video</label>
+        <textarea id="caption-input" rows="4" maxlength="12000" placeholder="Se hai già il testo, puoi incollarlo qui."></textarea>
+      </details>
+    </form>
+    <a id="access" class="access" href="https://ricettario-elia.onrender.com/" hidden>Accedi al ricettario</a>
+    <p id="status" role="status"></p>
   </section>
   <article id="recipe" hidden aria-labelledby="title">
     <div class="screen recipe-top"><button class="quiet recipe-close-top" type="button" id="close-top" aria-label="Chiudi scheda ricetta">×</button></div>
@@ -193,9 +187,9 @@
   </article>
   <section id="archive" class="screen archive" aria-labelledby="archive-title" hidden>
     <header class="archive-head">
-      <div><h2 id="archive-title" tabindex="-1">Le mie ricette</h2><p id="count"></p></div>
+      <div class="archive-summary"><h2 id="archive-title" tabindex="-1">Le mie ricette</h2><p id="count"></p></div>
       <div class="archive-controls" id="search-wrap" hidden>
-        <div class="search"><label for="search">Cerca nell’archivio</label><input type="search" id="search" placeholder="Titolo, autore, ingrediente…"></div>
+        <div class="search"><label for="search">Cerca nell’archivio</label><input type="search" id="search" placeholder="Titolo, autore…"></div>
         <div><label for="category-filter">Categoria</label><select id="category-filter"><option value="">Tutte le categorie</option><option value="uncategorized">Senza categoria</option></select></div>
       </div>
     </header>
@@ -385,9 +379,6 @@
     byId('edit-categories').append(fieldset);
   }
   const categoryChoices = [...byId('edit-categories').querySelectorAll('input')];
-  const featuredButton = byId('feature');
-  const featuredImage = byId('feature-image');
-  let featuredEntry;
   const https = value => typeof value === 'string' && value.startsWith('https://');
   const photoSource = value => https(value) || (typeof value === 'string' && value.length <= 450000 &&
     /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(value));
@@ -419,30 +410,6 @@
     renderArchive();
   }
 
-  featuredImage.addEventListener('load', () => {
-    featuredButton.hidden = !featuredEntry;
-  });
-  featuredImage.addEventListener('error', () => { featuredButton.hidden = true; });
-  featuredButton.addEventListener('click', () => {
-    if (featuredEntry) render(featuredEntry.recipe, featuredEntry.key, featuredButton, true);
-  });
-
-  function showFeatured(entries) {
-    const next = entries.find(entry => photoSource(entry.recipe.image));
-    const samePhoto = next && featuredEntry?.recipe.image === next.recipe.image;
-    featuredEntry = next;
-    if (!next) {
-      featuredButton.hidden = true;
-      featuredImage.removeAttribute('src');
-      return;
-    }
-    byId('feature-title').textContent = next.recipe.titolo || 'Apri ricetta';
-    if (!samePhoto) {
-      featuredButton.hidden = true;
-      featuredImage.src = next.recipe.image;
-    }
-  }
-
   function renderArchive() {
     const list = byId('archive-list');
     const empty = byId('archive-empty');
@@ -469,7 +436,6 @@
       saveButton.disabled = true;
       return;
     }
-    showFeatured(entries);
     saveButton.disabled = archiveBusy;
     if (archiveMode === 'online') {
       try { migrateButton.hidden = !readArchive().length; } catch { /* Online archive still works. */ }
@@ -610,7 +576,6 @@
   const pagesPreview = window.location.hostname.endsWith('.github.io');
   if (pagesPreview) {
     form.hidden = true;
-    byId('main-nav').hidden = true;
     byId('access').hidden = false;
     byId('intro').textContent = 'Accedi per importare una ricetta da un Reel, da TikTok o da un blog di cucina.';
   } else {
