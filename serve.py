@@ -31,6 +31,10 @@ EXPECTED_HOST = urlsplit(ORIGIN).netloc
 INDEX = Path(__file__).with_name("index.html")
 ICONS = {
     "/favicon.svg": "image/svg+xml",
+    "/favicon.ico": "image/x-icon",
+    "/icon-192.png": "image/png",
+    "/icon-512.png": "image/png",
+    "/manifest.webmanifest": "application/manifest+json",
     "/apple-touch-icon.png": "image/png",
 }
 
