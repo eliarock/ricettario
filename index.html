@@ -52,13 +52,61 @@
     body,#meta,#sources { font-size:10pt; }
     li { break-inside:avoid; }
   }
+
+  :root { --paper:#f5f0e7; --ink:#292b22; --muted:#5c5b4d; --accent:#873e2a; --rule:#d7cebd; --green:#29382d; }
+  main { max-width:72rem; padding-top:1.5rem; }
+  .mast { align-items:center; margin-bottom:1.1rem; border:0; padding:0; }
+  .mast strong { font-family:Georgia,serif; font-size:1.45rem; text-transform:none; letter-spacing:0; }
+  .mast span,.eyebrow { font-size:.75rem; font-weight:750; text-transform:uppercase; letter-spacing:.13em; }
+  .import-panel { position:relative; isolation:isolate; overflow:hidden; background:var(--green); color:#fff8e9; padding:clamp(1.4rem,4vw,3rem); border-radius:.7rem; }
+  .import-panel::after { content:""; position:absolute; z-index:-1; width:20rem; aspect-ratio:1; top:-9rem; right:-4rem; border-radius:50%; background:repeating-radial-gradient(circle,transparent 0 16px,#f4ddad30 17px 18px,transparent 19px 25px); pointer-events:none; }
+  .import-panel h1 { font-size:clamp(2.4rem,6vw,4.5rem); margin:.35rem 0; }
+  .import-panel .eyebrow,.import-panel .intro,.import-panel #status { color:#e9ddc6; }
+  .import-panel .intro { margin-bottom:1.35rem; }
+  .import-panel label { font-size:.88rem; }
+  .import-panel .entry { max-width:45rem; }
+  .import-panel :focus-visible { outline-color:#ffdb9b; }
+  #status { margin:.75rem 0 0; min-height:0; }
+  #status:empty,#meta:empty { display:none; }
+  .archive { margin-top:clamp(2rem,5vw,3.6rem); }
+  .archive-head { display:flex; gap:1rem; justify-content:space-between; align-items:end; padding-bottom:.95rem; border-bottom:1px solid var(--rule); }
+  .archive-head h2 { font-size:clamp(2.1rem,5vw,3.4rem); }
+  #count { color:var(--muted); margin:.3rem 0 0; }
+  .search { min-width:0; width:min(18rem,100%); }
+  .search input { width:100%; padding:.6rem .75rem; }
+  .archive-empty { padding:1.5rem 0; color:var(--muted); }
+  .archive-list { list-style:none; margin:0; padding:0; }
+  .archive-item { display:flex; align-items:center; gap:.85rem; margin:0; padding:.8rem 0; border-bottom:1px solid var(--rule); }
+  .archive-open { display:flex; gap:1rem; align-items:center; flex:1; min-width:0; text-align:left; padding:.25rem; color:var(--ink); background:transparent; }
+  .archive-open:hover,.quiet:hover { background:#e9e0cf; }
+  .thumb { width:4.7rem; height:3.7rem; flex:none; display:grid; place-items:center; background:#e9dfca; color:#78533c; border-radius:.3rem; overflow:hidden; font:1.35rem Georgia,serif; }
+  .thumb img { width:100%; height:100%; object-fit:cover; }
+  .entry-title { display:block; font:1.25rem/1.2 Georgia,serif; overflow-wrap:anywhere; }
+  .entry-source { display:block; margin-top:.22rem; font-size:.8rem; color:var(--muted); }
+  .quiet { background:transparent; border-color:#ad9e87; color:var(--ink); }
+  .remove { font-size:.85rem; padding:.45rem .6rem; }
+  #archive-note { color:var(--muted); font-size:.85rem; margin-top:1.1rem; }
+  article { border-radius:.55rem; box-shadow:0 8px 22px #34271210; }
+  .recipe-actions { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; }
+  #recipe-feedback { margin:.55rem 0 0; color:var(--muted); }
+  @media (max-width:34rem) {
+    .archive-head { align-items:stretch; flex-direction:column; }
+    .search { width:100%; }
+    .archive-item { gap:.45rem; }
+    .archive-open { gap:.55rem; }
+    .thumb { width:3.5rem; height:3rem; }
+    .remove { padding:.4rem; }
+    .mast span { font-size:.65rem; }
+  }
+  @media print { main,article { padding:0; box-shadow:none; border-radius:0; } }
 </style>
 </head>
 <body>
 <main>
   <header class="mast screen"><strong>Ricettario</strong><span>Archivio personale</span></header>
-  <section class="screen">
-    <h1>Dal link alla tavola.</h1>
+  <section class="screen import-panel" aria-labelledby="import-title">
+    <div class="eyebrow">Nuova ricetta</div>
+    <h1 id="import-title">Dal link alla tavola.</h1>
     <p id="intro" class="intro">Incolla il link di un Reel o di un blog di cucina.</p>
     <form id="form">
       <label for="url">Link della ricetta</label>
@@ -69,7 +117,7 @@
   </section>
   <article id="recipe" hidden aria-labelledby="title">
     <header class="recipe-head">
-      <div><h2 id="title"></h2><p id="meta"></p></div>
+      <div><h2 id="title" tabindex="-1"></h2><p id="meta"></p></div>
       <img id="photo" alt="" hidden>
     </header>
     <p id="notice" hidden></p>
@@ -79,8 +127,22 @@
     </div>
     <p id="caption" hidden></p>
     <p id="sources"></p>
-    <button class="screen" type="button" id="print">Stampa ricetta</button>
+    <div class="screen recipe-actions">
+      <button type="button" id="save">Salva ricetta</button>
+      <button class="quiet" type="button" id="print">Stampa ricetta</button>
+      <button class="quiet" type="button" id="close">Chiudi scheda</button>
+    </div>
+    <p class="screen" id="recipe-feedback" role="status"></p>
   </article>
+  <section id="archive" class="screen archive" aria-labelledby="archive-title" hidden>
+    <header class="archive-head">
+      <div><h2 id="archive-title" tabindex="-1">Le mie ricette</h2><p id="count"></p></div>
+      <div class="search" id="search-wrap" hidden><label for="search">Cerca nell’archivio</label><input type="search" id="search" placeholder="Titolo, autore, ingrediente…"></div>
+    </header>
+    <p class="archive-empty" id="archive-empty"></p>
+    <ul class="archive-list" id="archive-list"></ul>
+    <p id="archive-note">Le ricette sono salvate in questo browser.</p>
+  </section>
 </main>
 <script>
   const byId = id => document.getElementById(id);
@@ -95,7 +157,110 @@
       return li;
     }));
   };
-  function render(recipe) {
+  const storageKey = 'ricettario.archive.v1';
+  let current;
+  let returnFocus;
+  const feedback = byId('recipe-feedback');
+  const saveButton = byId('save');
+  const search = byId('search');
+  const https = value => typeof value === 'string' && value.startsWith('https://');
+
+  function readArchive() {
+    const data = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    if (!Array.isArray(data)) throw new Error('Archivio illeggibile');
+    return data;
+  }
+
+  function renderArchive() {
+    const list = byId('archive-list');
+    const empty = byId('archive-empty');
+    const count = byId('count');
+    list.replaceChildren();
+    let entries;
+    try {
+      entries = readArchive();
+    } catch {
+      empty.hidden = false;
+      empty.textContent = 'L’archivio di questo browser non è disponibile.';
+      saveButton.disabled = true;
+      return;
+    }
+    saveButton.disabled = false;
+    count.textContent = entries.length === 1 ? '1 ricetta salvata' : entries.length + ' ricette salvate';
+    byId('search-wrap').hidden = !entries.length;
+    if (!entries.length) search.value = '';
+    const query = search.value.trim().toLocaleLowerCase('it');
+    const filtered = entries.filter(({recipe}) => [recipe.titolo, recipe.author, recipe.descrizione,
+      ...(Array.isArray(recipe.ingredienti) ? recipe.ingredienti : [])]
+      .some(value => String(value || '').toLocaleLowerCase('it').includes(query)));
+    empty.hidden = !!filtered.length;
+    empty.textContent = entries.length
+      ? 'Nessuna ricetta corrisponde alla ricerca.'
+      : 'Il tuo archivio è ancora vuoto. Importa un link e premi «Salva ricetta».';
+    for (const entry of filtered) {
+      const {recipe, key} = entry;
+      const title = recipe.titolo || 'Ricetta senza titolo';
+      const row = document.createElement('li');
+      row.className = 'archive-item';
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'archive-open';
+      const thumb = document.createElement('span');
+      thumb.className = 'thumb';
+      thumb.setAttribute('aria-hidden', 'true');
+      thumb.textContent = title.slice(0, 1).toLocaleUpperCase('it');
+      if (https(recipe.image)) {
+        const image = document.createElement('img');
+        image.alt = '';
+        image.loading = 'lazy';
+        image.addEventListener('error', () => { thumb.textContent = title.slice(0, 1); });
+        image.src = recipe.image;
+        thumb.replaceChildren(image);
+      }
+      const info = document.createElement('span');
+      const label = document.createElement('span');
+      label.className = 'entry-title';
+      label.textContent = title;
+      const source = document.createElement('span');
+      source.className = 'entry-source';
+      source.textContent = recipe.author || (recipe.blog ? 'Blog di cucina' : 'Reel');
+      info.append(label, source);
+      open.append(thumb, info);
+      open.addEventListener('click', () => render(recipe, key, open, true));
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'quiet remove';
+      remove.textContent = 'Rimuovi';
+      remove.setAttribute('aria-label', 'Rimuovi ' + title);
+      remove.addEventListener('click', () => {
+        if (!window.confirm('Rimuovere «' + title + '» dall’archivio?')) return;
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(readArchive().filter(item => item.key !== key)));
+          if (current?.key === key) closeRecipe(false);
+          renderArchive();
+          byId('archive-title').focus();
+        } catch {
+          byId('archive-note').textContent = 'Non è stato possibile rimuovere la ricetta.';
+        }
+      });
+      row.append(open, remove);
+      list.append(row);
+    }
+  }
+
+  function closeRecipe(restoreFocus = true) {
+    article.hidden = true;
+    current = undefined;
+    if (restoreFocus) {
+      (returnFocus?.isConnected ? returnFocus : byId('url')).focus();
+    }
+  }
+
+  function render(recipe, key, trigger, saved = false) {
+    current = {recipe, key};
+    returnFocus = trigger;
+    feedback.textContent = '';
+    saveButton.hidden = saved;
     byId('title').textContent = recipe.titolo || 'Ricetta importata';
     byId('meta').textContent = [recipe.author, recipe.porzioni && recipe.porzioni + ' porzioni',
       ...(typeof recipe.tempi === 'string' ? [recipe.tempi] :
@@ -104,7 +269,8 @@
     const photo = byId('photo');
     photo.hidden = !recipe.image;
     photo.removeAttribute('src');
-    if (recipe.image) photo.src = recipe.image;
+    if (https(recipe.image)) photo.src = recipe.image;
+    else photo.hidden = true;
     const notes = [
       recipe.needs_confirmation && 'Ricetta trovata sul blog dell’autore. Verifica che corrisponda al Reel.',
       !recipe.translated && 'Anteprima nella lingua originale. Traduzione da configurare.',
@@ -126,35 +292,58 @@
       sources.append('  ', a);
     }
     article.hidden = false;
+    byId('title').focus();
   }
   const pagesPreview = window.location.hostname.endsWith('.github.io');
   if (pagesPreview) {
     form.hidden = true;
     byId('access').hidden = false;
     byId('intro').textContent = 'Accedi per importare una ricetta da un Reel o da un blog di cucina.';
+  } else {
+    byId('archive').hidden = false;
+    renderArchive();
+    search.addEventListener('input', renderArchive);
+    window.addEventListener('storage', event => {
+      if (event.key === storageKey || event.key === null) renderArchive();
+    });
   }
+  saveButton.addEventListener('click', () => {
+    if (!current) return;
+    try {
+      const remaining = readArchive().filter(item => item.key !== current.key);
+      localStorage.setItem(storageKey, JSON.stringify([current, ...remaining]));
+      renderArchive();
+      saveButton.hidden = true;
+      feedback.textContent = 'Salvata nelle mie ricette.';
+      byId('print').focus();
+    } catch {
+      feedback.textContent = 'Impossibile salvare in questo browser. Controlla lo spazio disponibile.';
+    }
+  });
+  byId('close').addEventListener('click', () => closeRecipe());
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (pagesPreview) return;
     button.disabled = true;
     status.textContent = 'Sto cercando la ricetta…';
-    article.hidden = true;
+    closeRecipe(false);
+    const url = byId('url').value.trim();
     try {
       const response = await fetch('/api/import', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({url:byId('url').value.trim()}),
+        body: JSON.stringify({url}),
       });
       if (!response.headers.get('Content-Type')?.includes('application/json')) {
         throw new Error('Il servizio di importazione non risponde. Riprova più tardi.');
       }
       const recipe = await response.json();
       if (!response.ok) throw new Error(recipe.error);
-      render(recipe);
+      render(recipe, recipe.reel || recipe.blog || url, byId('url'));
       status.textContent = 'Ricetta importata.';
     } catch (error) {
       status.textContent = error instanceof SyntaxError || error instanceof TypeError
-        ? 'Il servizio di importazione non è disponibile. Avvia il server locale.'
+        ? 'Il servizio di importazione non è disponibile. Riprova tra poco.'
         : error.message;
     } finally {
       button.disabled = false;
