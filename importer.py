@@ -142,7 +142,18 @@ def search_author_blog(author, title):
         if parts.netloc != urlsplit(blog).netloc or parts.query:
             continue
         slug = parts.path.strip("/")
-        if "/" in slug or not terms.issubset(set(slug.casefold().split("-"))):
+        slug_terms = set(slug.casefold().split("-"))
+        # Reel titles and recipe URLs can use different English plurals.
+        matching_terms = slug_terms | {
+            word[:-len(ending)]
+            for word in slug_terms
+            for ending in ("s", "es")
+            if word.endswith(ending) and len(word) > len(ending) + 2
+        }
+        if "/" in slug or not all(
+            term in matching_terms or any(term.endswith(ending) and term[:-len(ending)] in slug_terms for ending in ("s", "es"))
+            for term in terms
+        ):
             continue
         result = read_blog(candidate)
         if result:
