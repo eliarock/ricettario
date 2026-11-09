@@ -77,6 +77,9 @@
   #sources{border-top:1px solid var(--rule);padding-top:.8rem;font-size:.88rem}
   .recipe-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
   #recipe-feedback{color:var(--muted);margin:.65rem 0 0}
+  .recipe-photo-actions{margin-top:.8rem}
+  #recipe-photo-feedback{margin:0;color:var(--muted);font-size:.9rem}
+  #recipe-photo-feedback:empty{display:none}
   .recipe-editor{width:min(42rem,calc(100% - 1.5rem));max-height:calc(100dvh - 1.5rem);padding:0;border:1px solid var(--rule);border-radius:.8rem;background:var(--white);color:var(--ink);box-shadow:0 16px 54px #28271f40}
   .recipe-editor::backdrop{background:#28271f80}
   .editor-form{padding:clamp(1rem,4vw,2rem)}
@@ -170,6 +173,10 @@
       </div>
       <img id="photo" alt="" hidden>
     </header>
+    <div class="screen recipe-actions recipe-photo-actions">
+      <button class="quiet" id="paste-recipe-photo" type="button">Incolla foto</button>
+      <p id="recipe-photo-feedback" role="status"></p>
+    </div>
     <p id="notice" hidden></p>
     <div class="columns" id="columns">
       <section><h3>Ingredienti</h3><ul id="ingredients"></ul></section>
@@ -262,6 +269,9 @@
   const retryArchive = byId('retry-archive');
   const feedback = byId('recipe-feedback');
   const saveButton = byId('save');
+  const editButton = byId('edit');
+  const pasteRecipePhoto = byId('paste-recipe-photo');
+  const recipePhotoFeedback = byId('recipe-photo-feedback');
   const editor = byId('editor');
   const editorSave = byId('editor-save');
   const editorCancel = byId('editor-cancel');
@@ -437,7 +447,7 @@
       saveButton.disabled = true;
       return;
     }
-    saveButton.disabled = archiveBusy;
+    saveButton.disabled = archiveBusy || pasteRecipePhoto.disabled;
     if (archiveMode === 'online') {
       try { migrateButton.hidden = !readArchive().length; } catch { /* Online archive still works. */ }
     }
@@ -532,11 +542,19 @@
     }
   }
 
+  function renderRecipePhoto(image) {
+    const photo = byId('photo');
+    photo.hidden = !photoSource(image);
+    if (photo.hidden) photo.removeAttribute('src');
+    else photo.src = image;
+  }
+
   function render(recipe, key, trigger, saved = false) {
     current = {recipe, key};
     currentSaved = saved;
     returnFocus = trigger;
     feedback.textContent = '';
+    recipePhotoFeedback.textContent = '';
     saveButton.hidden = saved;
     byId('title').textContent = recipe.titolo || 'Ricetta importata';
     const portions = recipe.porzioni ? String(recipe.porzioni) : '';
@@ -545,11 +563,7 @@
       formatTimes(recipe.tempi),
     ].filter(Boolean).join('  /  ');
     renderCategories(byId('recipe-categories'), recipe);
-    const photo = byId('photo');
-    photo.hidden = !recipe.image;
-    photo.removeAttribute('src');
-    if (photoSource(recipe.image)) photo.src = recipe.image;
-    else photo.hidden = true;
+    renderRecipePhoto(recipe.image);
     const notes = [
       recipe.needs_confirmation && 'Ricetta trovata sul blog dell’autore. Verifica che corrisponda al video.',
       !recipe.translated && 'Anteprima nella lingua originale. Traduzione da configurare.',
@@ -797,7 +811,7 @@
     if (file && !editorSave.disabled) prepareEditorPhoto(file);
   });
 
-  byId('edit').addEventListener('click', () => {
+  function openRecipeEditor() {
     if (!current || archiveBusy || editor.open) return;
     const {recipe} = current;
     byId('edit-title').value = recipe.titolo || '';
@@ -819,6 +833,42 @@
     editorError.textContent = '';
     editor.showModal();
     byId('edit-title').focus();
+  }
+
+  editButton.addEventListener('click', openRecipeEditor);
+  pasteRecipePhoto.addEventListener('click', async () => {
+    if (!current || archiveBusy || pasteRecipePhoto.disabled) return;
+    if (!navigator.clipboard?.read) {
+      openRecipeEditor();
+      photoFeedback('Usa Incolla in questo campo oppure carica la foto dal dispositivo.');
+      photoUrl.focus();
+      return;
+    }
+    const entry = current;
+    const saved = currentSaved;
+    let saving = false;
+    pasteRecipePhoto.disabled = editButton.disabled = saveButton.disabled = true;
+    recipePhotoFeedback.textContent = 'Sto incollando la foto…';
+    try {
+      const image = await resizePhoto(await readClipboardPhoto());
+      if (current !== entry) return;
+      const updated = {...entry, recipe:{...entry.recipe, image}};
+      if (saved) {
+        saving = true;
+        await persistEntry(updated);
+      }
+      if (current !== entry) return;
+      current = updated;
+      renderRecipePhoto(image);
+      recipePhotoFeedback.textContent = saved ? 'Foto aggiornata nell’archivio.' : 'Foto aggiunta. Salva la ricetta per conservarla.';
+    } catch (error) {
+      if (current === entry) {
+        recipePhotoFeedback.textContent = saving ? 'Impossibile salvare la foto. Riprova.' : error.message;
+      }
+    } finally {
+      pasteRecipePhoto.disabled = editButton.disabled = false;
+      saveButton.disabled = archiveBusy;
+    }
   });
 
   editorCancel.addEventListener('click', () => editor.close());
