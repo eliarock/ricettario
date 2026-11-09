@@ -5,128 +5,140 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ricettario personale</title>
 <style>
-  :root { color-scheme: light; --ink:#28271f; --muted:#5f594d; --paper:#f7f3e9; --rule:#d6cbb7; --accent:#85412d; }
-  * { box-sizing:border-box; }
-  [hidden] { display:none !important; }
-  body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.55 system-ui,sans-serif; }
-  main { max-width:60rem; margin:auto; padding:clamp(1.2rem,5vw,4rem); }
-  .mast { display:flex; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--rule); padding-bottom:1rem; color:var(--muted); font-size:.82rem; }
-  .mast strong { color:var(--accent); text-transform:uppercase; letter-spacing:.12em; }
-  h1,h2,h3 { font-family:Georgia,serif; font-weight:normal; line-height:1.12; margin:0; }
-  h1 { font-size:clamp(2.8rem,8vw,5rem); margin-top:2.4rem; letter-spacing:-.04em; }
-  h2 { font-size:clamp(2rem,5vw,3.1rem); }
-  h3 { font-size:1.45rem; }
-  .intro { color:var(--muted); margin:.55rem 0 1.55rem; }
-  label { display:block; margin-bottom:.4rem; font-weight:650; }
-  .entry { display:flex; gap:.55rem; }
-  input,button { font:inherit; border-radius:.28rem; padding:.78rem 1rem; }
-  input { min-width:0; flex:1; border:1px solid #a99a83; background:#fffefa; color:var(--ink); }
-  button { background:var(--accent); color:#fff; border:1px solid transparent; font-weight:650; cursor:pointer; }
-  button:hover, .access:hover { background:#6a3424; }
-  .access { display:inline-block; background:var(--accent); color:white; border-radius:.28rem; padding:.78rem 1rem; text-decoration:none; font-weight:650; }
-  button:disabled { opacity:.65; cursor:not-allowed; }
-  :focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
-  #status { min-height:1.6rem; color:var(--muted); }
-  article { margin-top:1.5rem; background:#fffefa; padding:clamp(1.2rem,4vw,2.5rem); border:1px solid var(--rule); }
-  .recipe-head { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:1rem; }
-  .recipe-head img { width:clamp(6rem,20vw,12rem); aspect-ratio:4/3; object-fit:cover; }
-  .recipe-head img[hidden] { display:none; }
-  #meta,#sources { color:var(--muted); font-size:.9rem; }
-  #notice { border-left:3px solid var(--accent); padding-left:.75rem; color:#693624; }
-  .columns { display:grid; grid-template-columns:1fr 1.6fr; gap:1.6rem; margin-top:1.5rem; }
-  ul,ol { padding-left:1.3rem; }
-  li { padding-left:.15rem; margin:.35rem 0; }
-  #caption { white-space:pre-line; overflow-wrap:anywhere; }
-  #sources { border-top:1px solid var(--rule); padding-top:.75rem; }
-  a { color:var(--accent); text-underline-offset:.2em; }
-  @media (max-width:34rem) { .entry,.columns { display:grid; grid-template-columns:1fr; } }
-  @page { size:A4 portrait; margin:13mm; }
-  @media print {
-    body,article { background:white; color:#111; }
-    main,article { margin:0; padding:0; max-width:none; border:0; }
-    .screen { display:none !important; }
-    .recipe-head { grid-template-columns:minmax(0,1fr) auto; break-inside:avoid; }
-    .recipe-head img { width:42mm; max-height:31mm; }
-    h2 { font-size:25pt; } h3 { font-size:15pt; break-after:avoid; }
-    .columns { display:grid; grid-template-columns:1fr 1.6fr; gap:8mm; margin-top:4mm; }
-    body,#meta,#sources { font-size:10pt; }
-    li { break-inside:avoid; }
-  }
-
-  :root { --paper:#f5f0e7; --ink:#292b22; --muted:#5c5b4d; --accent:#873e2a; --rule:#d7cebd; --green:#29382d; }
-  main { max-width:72rem; padding-top:1.5rem; }
-  .mast { align-items:center; margin-bottom:1.1rem; border:0; padding:0; }
-  .mast strong { font-family:Georgia,serif; font-size:1.45rem; text-transform:none; letter-spacing:0; }
-  .mast span,.eyebrow { font-size:.75rem; font-weight:750; text-transform:uppercase; letter-spacing:.13em; }
-  .import-panel { position:relative; isolation:isolate; overflow:hidden; background:var(--green); color:#fff8e9; padding:clamp(1.4rem,4vw,3rem); border-radius:.7rem; }
-  .import-panel::after { content:""; position:absolute; z-index:-1; width:20rem; aspect-ratio:1; top:-9rem; right:-4rem; border-radius:50%; background:repeating-radial-gradient(circle,transparent 0 16px,#f4ddad30 17px 18px,transparent 19px 25px); pointer-events:none; }
-  .import-panel h1 { font-size:clamp(2.4rem,6vw,4.5rem); margin:.35rem 0; }
-  .import-panel .eyebrow,.import-panel .intro,.import-panel #status { color:#e9ddc6; }
-  .import-panel .intro { margin-bottom:1.35rem; }
-  .import-panel label { font-size:.88rem; }
-  .import-panel .entry { max-width:45rem; }
-  .import-panel :focus-visible { outline-color:#ffdb9b; }
-  #status { margin:.75rem 0 0; min-height:0; }
-  #status:empty,#meta:empty { display:none; }
-  .archive { margin-top:clamp(2rem,5vw,3.6rem); }
-  .archive-head { display:flex; gap:1rem; justify-content:space-between; align-items:end; padding-bottom:.95rem; border-bottom:1px solid var(--rule); }
-  .archive-head h2 { font-size:clamp(2.1rem,5vw,3.4rem); }
-  #count { color:var(--muted); margin:.3rem 0 0; }
-  .search { min-width:0; width:min(18rem,100%); }
-  .search input { width:100%; padding:.6rem .75rem; }
-  .archive-empty { padding:1.5rem 0; color:var(--muted); }
-  .archive-list { list-style:none; margin:0; padding:0; }
-  .archive-item { display:flex; align-items:center; gap:.85rem; margin:0; padding:.8rem 0; border-bottom:1px solid var(--rule); }
-  .archive-open { display:flex; gap:1rem; align-items:center; flex:1; min-width:0; text-align:left; padding:.25rem; color:var(--ink); background:transparent; }
-  .archive-open:hover,.quiet:hover { background:#e9e0cf; }
-  .thumb { width:4.7rem; height:3.7rem; flex:none; display:grid; place-items:center; background:#e9dfca; color:#78533c; border-radius:.3rem; overflow:hidden; font:1.35rem Georgia,serif; }
-  .thumb img { width:100%; height:100%; object-fit:cover; }
-  .entry-title { display:block; font:1.25rem/1.2 Georgia,serif; overflow-wrap:anywhere; }
-  .entry-source { display:block; margin-top:.22rem; font-size:.8rem; color:var(--muted); }
-  .quiet { background:transparent; border-color:#ad9e87; color:var(--ink); }
-  .remove { font-size:.85rem; padding:.45rem .6rem; }
-  #archive-note { color:var(--muted); font-size:.85rem; margin-top:1.1rem; }
-  article { border-radius:.55rem; box-shadow:0 8px 22px #34271210; }
-  .recipe-actions { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; }
-  #recipe-feedback { margin:.55rem 0 0; color:var(--muted); }
-  @media (max-width:34rem) {
-    .archive-head { align-items:stretch; flex-direction:column; }
-    .search { width:100%; }
-    .archive-item { gap:.45rem; }
-    .archive-open { gap:.55rem; }
-    .thumb { width:3.5rem; height:3rem; }
-    .remove { padding:.4rem; }
-    .mast span { font-size:.65rem; }
-  }
-  @media print { main,article { padding:0; box-shadow:none; border-radius:0; } }
-  .recipe-editor { width:min(42rem, calc(100% - 1.5rem)); max-height:calc(100dvh - 1.5rem); padding:0; border:1px solid var(--rule); border-radius:.65rem; background:#fffefa; color:var(--ink); box-shadow:0 16px 54px #28271f40; }
-  .recipe-editor::backdrop { background:#28271f80; }
-  .editor-form { padding:clamp(1rem,4vw,2rem); }
-  .editor-form h2 { font-size:clamp(1.8rem,5vw,2.65rem); }
-  .editor-form p { margin:.5rem 0 1rem; color:var(--muted); }
-  .editor-fields { display:grid; gap:.85rem; }
-  .editor-meta { display:grid; grid-template-columns:1fr 2fr; gap:.85rem; }
-  .editor-form input,.editor-form textarea { width:100%; }
-  .editor-form textarea { display:block; border:1px solid #a99a83; border-radius:.28rem; padding:.65rem .75rem; color:var(--ink); background:#fffefa; font:inherit; resize:vertical; }
-  .editor-form .recipe-actions { margin-top:1rem; }
-  .editor-form #editor-error { margin:0; color:var(--accent); }
-  .editor-form #editor-error:empty { display:none; }
-  @media (max-width:34rem) { .editor-meta { grid-template-columns:1fr; } }
+  :root{color-scheme:light;--ink:#2c221c;--muted:#685a50;--paper:#fffaf1;--white:#fffefa;--rule:#e4d7c5;--accent:#a33124;--dark:#792218;--gold:#ffd77c;--sage:#405e43;--serif:Georgia,"Times New Roman",serif}
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;color:var(--ink);background:var(--paper);font:1rem/1.55 system-ui,sans-serif}
+  ::selection{background:var(--gold);color:var(--ink)}
+  a{color:var(--accent);text-underline-offset:.2em}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+  button,input,textarea{font:inherit}
+  button,.access{min-height:44px;border:1px solid transparent;border-radius:.5rem;padding:.65rem 1rem;background:var(--accent);color:white;font-weight:700;cursor:pointer}
+  button:hover,.access:hover{background:var(--dark)}
+  button:disabled{opacity:.65;cursor:not-allowed}
+  input,textarea{width:100%;min-width:0;padding:.72rem .85rem;border:1px solid #ad9b84;border-radius:.5rem;background:var(--white);color:var(--ink)}
+  input::placeholder,textarea::placeholder{color:#75675b}
+  label{display:block;margin:0 0 .35rem;font-size:.88rem;font-weight:700}
+  h1,h2,h3{font-family:var(--serif);font-weight:normal;line-height:1.07;margin:0;text-wrap:balance}
+  h2{font-size:clamp(2.2rem,5vw,3.7rem);letter-spacing:-.035em}
+  h3{font-size:clamp(1.55rem,3vw,2rem)}
+  .mast{border-top:.35rem solid var(--accent);border-bottom:1px solid var(--rule);background:var(--white)}
+  .mast-inner{width:min(100% - 2rem,72rem);min-height:4.45rem;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+  .brand{display:inline-flex;gap:.6rem;align-items:center;color:var(--ink);text-decoration:none;font:1.65rem/1 var(--serif);letter-spacing:-.04em}
+  .brand-icon{display:grid;place-items:center;width:2.25rem;height:2.25rem;border-radius:50%;background:var(--gold);color:var(--dark)}
+  .brand-icon svg{width:1.4rem;height:1.4rem}
+  .mast nav{display:flex;flex-wrap:wrap;gap:.3rem 1rem}
+  .mast nav a{color:var(--ink);font-size:.87rem;font-weight:700;text-decoration:none;padding:.55rem .2rem}
+  .mast nav a:hover{text-decoration:underline}
+  main{width:min(100% - 2rem,72rem);margin:clamp(1rem,3vw,2.25rem) auto 4rem}
+  .import-panel{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(14rem,1fr);align-items:stretch;overflow:hidden;border:1px solid #edc985;border-radius:1rem;background:#ffedc4}
+  .hero-copy{padding:clamp(1.5rem,5vw,3.8rem);position:relative;z-index:1}
+  .hero-copy h1{font-size:clamp(2.8rem,6vw,5.65rem);letter-spacing:-.045em;color:#472018}
+  .intro{max-width:37ch;color:#5e4634;margin:.8rem 0 1.4rem}
+  .entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.5rem}
+  .access{display:inline-flex;align-items:center;text-decoration:none}
+  #status{margin:.7rem 0 0;color:#5e4634}
+  #status:empty,#meta:empty,#editor-error:empty,#recipe-feedback:empty{display:none}
+  .hero-media{min-height:19rem;position:relative;overflow:hidden;display:grid;place-items:center;background:#efd5a6}
+  .hero-art{position:absolute;inset:0;width:100%;height:100%}
+  .feature{position:absolute;inset:0;padding:0;border:0;border-radius:0;background:#56372a;text-align:left}
+  .feature img{width:100%;height:100%;object-fit:cover;display:block}
+  .feature span{position:absolute;inset:auto .7rem .7rem;display:block;padding:.65rem .9rem;border-radius:.4rem;background:var(--white);color:var(--ink);font:1.15rem/1.25 var(--serif);overflow-wrap:anywhere}
+  .archive{margin-top:clamp(2.5rem,6vw,5rem);scroll-margin-top:1rem}
+  .archive-head{display:flex;align-items:end;justify-content:space-between;gap:1rem;border-bottom:1px solid var(--rule);padding-bottom:1rem}
+  #count,#archive-note,.entry-source,#meta,#sources{color:var(--muted)}
+  #count{margin:.35rem 0 0}
+  .search{width:min(22rem,100%)}
+  .archive-list{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.1rem;margin:1.2rem 0 0;padding:0}
+  .archive-item{display:flex;flex-direction:column;align-items:stretch;min-width:0;border:1px solid var(--rule);border-radius:.8rem;overflow:hidden;background:var(--white);box-shadow:0 4px 13px #432a1510}
+  .archive-open{position:relative;display:grid;grid-template-rows:auto 1fr;min-width:0;padding:0;border:0;border-radius:0;background:transparent;text-align:left;color:var(--ink);flex:1}
+  .archive-open:hover{background:#fff0d5}
+  .archive-open:focus-visible,.feature:focus-visible{outline-offset:-4px}
+  .thumb{width:100%;aspect-ratio:16/10;display:grid;place-items:center;overflow:hidden;background:#f4d9ab;color:#7f3828;font:clamp(2.5rem,6vw,4.5rem) var(--serif)}
+  .archive-item:nth-child(3n+2) .thumb{background:#dce4c9;color:#40533b}
+  .archive-item:nth-child(3n+3) .thumb{background:#f3d6cc;color:#843b2d}
+  .thumb img{width:100%;height:100%;object-fit:cover;transition:transform .23s ease-out}
+  .archive-open:hover img{transform:scale(1.035)}
+  .card-copy{display:flex;flex-direction:column;gap:.35rem;padding:1rem 1rem .75rem;min-width:0}
+  .entry-title{font:clamp(1.24rem,2.1vw,1.7rem)/1.16 var(--serif);overflow-wrap:anywhere}
+  .entry-source{font-size:.82rem;font-weight:650}
+  .archive-item .remove{align-self:start;margin:0 .75rem .6rem;min-height:36px;padding:.25rem .45rem;font-size:.82rem;border-color:transparent;color:var(--muted)}
+  .quiet{background:transparent;border-color:#b8a68f;color:var(--ink)}
+  .quiet:hover{background:#f6e9d4}
+  .archive-empty{border:1px dashed #c5ad8d;border-radius:.65rem;margin:1rem 0 0;padding:1.3rem;background:var(--white);color:var(--muted)}
+  #archive-note{margin:1rem 0 .5rem;font-size:.85rem}
+  article{margin:2rem 0 0;padding:clamp(1.15rem,4vw,3rem);border:1px solid var(--rule);border-radius:.9rem;background:var(--white);box-shadow:0 6px 22px #452b1810;scroll-margin-top:1rem}
+  .recipe-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(12rem,1fr);align-items:center;gap:1.5rem}
+  .recipe-head:has(img[hidden]){grid-template-columns:1fr}
+  .recipe-head img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:.55rem}
+  #meta{margin:.85rem 0 0;font-size:.92rem}
+  .columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.65fr);gap:1.5rem;margin-top:1.5rem}
+  .columns section:first-child{background:#fff2d8;border-radius:.6rem;padding:1.15rem}
+  .columns section:last-child{padding:1.15rem 0}
+  .columns ul,.columns ol{padding-left:1.3rem}
+  .columns li{padding-left:.15rem;margin:.45rem 0;overflow-wrap:anywhere}
+  .columns ol li::marker{color:var(--accent);font-weight:750}
+  #notice{padding:.6rem .85rem;border-left:3px solid var(--accent);background:#fff0e9;color:#762b20}
+  #caption{white-space:pre-line;overflow-wrap:anywhere}
+  #sources{border-top:1px solid var(--rule);padding-top:.8rem;font-size:.88rem}
+  .recipe-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+  #recipe-feedback{color:var(--muted);margin:.65rem 0 0}
+  .recipe-editor{width:min(42rem,calc(100% - 1.5rem));max-height:calc(100dvh - 1.5rem);padding:0;border:1px solid var(--rule);border-radius:.8rem;background:var(--white);color:var(--ink);box-shadow:0 16px 54px #28271f40}
+  .recipe-editor::backdrop{background:#28271f80}
+  .editor-form{padding:clamp(1rem,4vw,2rem)}
+  .editor-form h2{font-size:clamp(1.8rem,5vw,2.65rem)}
+  .editor-form p{margin:.5rem 0 1rem;color:var(--muted)}
+  .editor-fields{display:grid;gap:.85rem}
+  .editor-meta{display:grid;grid-template-columns:1fr 2fr;gap:.85rem}
+  .editor-form textarea{display:block;resize:vertical}
+  .editor-form .recipe-actions{margin-top:1rem}
+  .editor-form #editor-error{margin:0;color:var(--accent)}
+  @media(max-width:54rem){.archive-list{grid-template-columns:repeat(2,minmax(0,1fr))}.import-panel{grid-template-columns:minmax(0,1.35fr) minmax(10rem,.75fr)}}
+  @media(max-width:37rem){.mast-inner,main{width:calc(100% - 1.25rem)}.mast-inner{min-height:3.9rem}.brand{font-size:1.4rem}.brand-icon{width:1.85rem;height:1.85rem}.mast nav{gap:.3rem .55rem;flex-wrap:nowrap}.mast nav a{font-size:.77rem;white-space:nowrap}.mast nav a[href="#nuova-ricetta"]{display:none}.import-panel{grid-template-columns:1fr}.hero-media{min-height:0;aspect-ratio:2.6/1}.feature span{font-size:.98rem}.hero-copy h1{font-size:clamp(2.75rem,10vw,4.2rem)}.entry,.recipe-head,.columns,.editor-meta{grid-template-columns:1fr}.archive-head{align-items:stretch;flex-direction:column}.search{width:100%}.archive-list{gap:.55rem}.card-copy{padding:.7rem .6rem .45rem}.entry-title{font-size:1.12rem}.entry-source{font-size:.72rem}.archive-item .remove{margin:0 .2rem .3rem}.recipe-head img{order:-1}.columns section:last-child{padding:0}}
+  @media(prefers-reduced-motion:reduce){.thumb img{transition:none}}
+  @page{size:A4 portrait;margin:13mm}
+  @media print{.screen{display:none!important}body,article{background:white;color:#111;font-size:10pt}main,article{width:auto;margin:0;padding:0;border:0;border-radius:0;box-shadow:none}h2{font-size:25pt}h3{font-size:15pt;break-after:avoid}.recipe-head{grid-template-columns:minmax(0,1fr) auto;gap:5mm;break-inside:avoid}.recipe-head img{order:0;width:42mm;max-height:31mm}.columns{grid-template-columns:1fr 1.6fr;gap:8mm;margin-top:4mm}.columns section:first-child,.columns section:last-child{padding:0;background:white}.columns li{break-inside:avoid}#meta,#sources{font-size:9pt}#notice{background:white}}
 </style>
 </head>
 <body>
+<header class="mast screen" id="inizio">
+  <div class="mast-inner">
+    <a class="brand" href="#inizio" aria-label="Ricettario, inizio">
+      <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 3v5a3 3 0 0 0 6 0V3M8 3v18m9 0V3c-2 2-3 5-3 8h3"/></svg></span>
+      Ricettario
+    </a>
+    <nav id="main-nav" aria-label="Menu del ricettario"><a href="#nuova-ricetta">Importa ricetta</a><a href="#archive">Le mie ricette</a></nav>
+  </div>
+</header>
 <main>
-  <header class="mast screen"><strong>Ricettario</strong><span>Archivio personale</span></header>
-  <section class="screen import-panel" aria-labelledby="import-title">
-    <div class="eyebrow">Nuova ricetta</div>
-    <h1 id="import-title">Dal link alla tavola.</h1>
-    <p id="intro" class="intro">Incolla il link di un Reel o di un blog di cucina.</p>
-    <form id="form">
-      <label for="url">Link della ricetta</label>
-      <div class="entry"><input id="url" type="url" placeholder="https://…" autocomplete="url" required><button id="import">Importa ricetta</button></div>
-    </form>
-    <a id="access" class="access" href="https://ricettario-elia.onrender.com/" hidden>Accedi al ricettario</a>
-    <p id="status" role="status"></p>
+  <section class="screen import-panel" id="nuova-ricetta" aria-labelledby="import-title">
+    <div class="hero-copy">
+      <h1 id="import-title">Il mio ricettario</h1>
+      <p id="intro" class="intro">Salva le ricette che vuoi provare. Incolla il link di un Reel o di un blog di cucina.</p>
+      <form id="form">
+        <label for="url">Link della ricetta</label>
+        <div class="entry"><input id="url" type="url" placeholder="https://…" autocomplete="url" required><button id="import">Importa</button></div>
+      </form>
+      <a id="access" class="access" href="https://ricettario-elia.onrender.com/" hidden>Accedi al ricettario</a>
+      <p id="status" role="status"></p>
+    </div>
+    <div class="hero-media">
+      <svg class="hero-art" viewBox="0 0 600 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs><pattern id="cloth" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(-19)"><path d="M0 20h40M20 0v40" stroke="#af553d" stroke-width="4" opacity=".2"/></pattern></defs>
+        <path fill="#f1d6ab" d="M0 0h600v420H0z"/><path fill="url(#cloth)" d="M0 0h600v420H0z"/>
+        <ellipse cx="333" cy="232" rx="169" ry="162" fill="#ae795c" opacity=".22"/>
+        <circle cx="320" cy="208" r="160" fill="#fff9e7" stroke="#d5a875" stroke-width="2"/>
+        <circle cx="320" cy="208" r="140" fill="none" stroke="#ae4f38" stroke-width="2"/>
+        <circle cx="320" cy="208" r="130" fill="#f9efd8" stroke="#d5a875" stroke-width="1"/>
+        <g stroke="#456149" stroke-width="4" stroke-linecap="round"><path d="M281 229c46-37 94-49 139-46M328 234c20 11 44 23 74 17" fill="none"/></g>
+        <g fill="#56764d"><path d="M378 190c11-28 27-41 51-45-2 22-18 43-51 45Zm-25 9c-17-24-40-33-65-28 15 23 38 32 65 28Zm25 52c16 15 36 18 55 6-13-14-33-19-55-6Z"/></g>
+        <g stroke="#9a3b2b" stroke-width="2.5"><path d="M312 177c-24-10-53 0-68 19-20 25-11 60 17 76 28 17 67 10 81-16 15-28-2-70-30-79Z" fill="#c45137"/><path d="M338 205c9-20 33-32 56-23 24 9 35 36 23 61-12 25-37 36-59 24-21-11-28-41-20-62Z" fill="#d66848"/></g>
+        <g fill="none" stroke="#f3a085" stroke-width="3" stroke-linecap="round"><path d="M257 208c-10 11-12 25-6 37m110-37c6-10 13-15 25-17"/></g>
+        <g fill="#4e6b43"><path d="M298 178l-16-13 20 5 10-15 1 19 14 9-20-3-10 12Z"/><path d="M389 184l-7-14 12 9 16-9-7 14 8 10-15-5-13 8Z"/></g>
+        <g fill="#c59b68"><circle cx="236" cy="170" r="3"/><circle cx="221" cy="245" r="3"/><circle cx="366" cy="300" r="3"/><circle cx="416" cy="282" r="2"/><circle cx="347" cy="132" r="3"/></g>
+      </svg>
+      <button type="button" id="feature" class="feature" hidden><img id="feature-image" alt=""><span id="feature-title"></span></button>
+    </div>
   </section>
   <article id="recipe" hidden aria-labelledby="title">
     <header class="recipe-head">
@@ -211,6 +223,9 @@
   const editorCancel = byId('editor-cancel');
   const editorError = byId('editor-error');
   const search = byId('search');
+  const featuredButton = byId('feature');
+  const featuredImage = byId('feature-image');
+  let featuredEntry;
   const https = value => typeof value === 'string' && value.startsWith('https://');
 
   function readArchive() {
@@ -240,6 +255,30 @@
     renderArchive();
   }
 
+  featuredImage.addEventListener('load', () => {
+    featuredButton.hidden = !featuredEntry;
+  });
+  featuredImage.addEventListener('error', () => { featuredButton.hidden = true; });
+  featuredButton.addEventListener('click', () => {
+    if (featuredEntry) render(featuredEntry.recipe, featuredEntry.key, featuredButton, true);
+  });
+
+  function showFeatured(entries) {
+    const next = entries.find(entry => https(entry.recipe.image));
+    const samePhoto = next && featuredEntry?.recipe.image === next.recipe.image;
+    featuredEntry = next;
+    if (!next) {
+      featuredButton.hidden = true;
+      featuredImage.removeAttribute('src');
+      return;
+    }
+    byId('feature-title').textContent = next.recipe.titolo || 'Apri ricetta';
+    if (!samePhoto) {
+      featuredButton.hidden = true;
+      featuredImage.src = next.recipe.image;
+    }
+  }
+
   function renderArchive() {
     const list = byId('archive-list');
     const empty = byId('archive-empty');
@@ -266,6 +305,7 @@
       saveButton.disabled = true;
       return;
     }
+    showFeatured(entries);
     saveButton.disabled = archiveBusy;
     if (archiveMode === 'online') {
       try { migrateButton.hidden = !readArchive().length; } catch { /* Online archive still works. */ }
@@ -303,6 +343,7 @@
         thumb.replaceChildren(image);
       }
       const info = document.createElement('span');
+      info.className = 'card-copy';
       const label = document.createElement('span');
       label.className = 'entry-title';
       label.textContent = title;
@@ -385,10 +426,12 @@
     }
     article.hidden = false;
     byId('title').focus();
+    article.scrollIntoView({block:'start'});
   }
   const pagesPreview = window.location.hostname.endsWith('.github.io');
   if (pagesPreview) {
     form.hidden = true;
+    byId('main-nav').hidden = true;
     byId('access').hidden = false;
     byId('intro').textContent = 'Accedi per importare una ricetta da un Reel o da un blog di cucina.';
   } else {

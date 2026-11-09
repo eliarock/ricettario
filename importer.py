@@ -18,6 +18,68 @@ AUTHOR_BLOGS = {
     "dr. vegan": "https://drveganblog.com/",
     "moltofood": "https://www.moltofood.it/",
 }
+# See FONTI-ITALIANE.md for names and selection criteria.
+ITALIAN_RECIPE_DOMAINS = (
+    "giallozafferano.it",
+    "fattoincasadabenedetta.it",
+    "tavolartegusto.it",
+    "cookist.it",
+    "cucchiaio.it",
+    "lacucinaitaliana.it",
+    "misya.info",
+    "cookaround.com",
+    "agrodolce.it",
+    "dissapore.com",
+    "gamberorosso.it",
+    "gnamgnam.it",
+    "soniaperonaci.it",
+    "chiarapassion.com",
+    "lucake.it",
+    "hovogliadidolce.it",
+    "chiaramaci.com",
+    "cucinabotanica.com",
+    "moltofood.it",
+    "ilclubdellericette.it",
+    "ricetta.it",
+    "buonissimo.it",
+    "ricettedalmondo.it",
+    "buttalapasta.it",
+    "ricettasprint.it",
+    "piuricette.it",
+    "lemillericette.it",
+    "ricetteintv.com",
+    "cucinare.it",
+    "cucinare.meglio.it",
+    "ideericette.it",
+    "gustissimo.it",
+    "tidolaricetta.it",
+    "cucinanaturale.it",
+    "mangiarebene.com",
+    "ilgiornaledelcibo.it",
+    "italiangourmet.it",
+    "barilla.com",
+    "saporedimare.it",
+    "cucinaconmegraziellaeraffaele.it",
+    "cosatipreparopercena.com",
+    "cuordicucina.it",
+    "ricette-bimby.com",
+    "vegolosi.it",
+    "greenme.it",
+    "davidezambelli.com",
+    "chefincamicia.com",
+    "ricetteperbimby.it",
+    "dolcidee.it",
+    "paneangeli.it",
+)
+ITALIAN_CREATOR_DOMAINS = {
+    "benedetta rossi": "fattoincasadabenedetta.it",
+    "carlotta perego": "cucinabotanica.com",
+    "enrica panariello": "chiarapassion.com",
+    "flavia imperatore": "misya.info",
+    "luca perego": "lucake.it",
+    "valentina boccia": "hovogliadidolce.it",
+    "viviana dal pozzo": "cosatipreparopercena.com",
+}
 MAX_HTML = 8 * 1024 * 1024
 
 
@@ -140,6 +202,9 @@ def title_matches(terms, value):
 
 def author_matches(author, final, page, recipe):
     host = urlsplit(final).hostname or ""
+    known_domain = ITALIAN_CREATOR_DOMAINS.get(author.strip().casefold())
+    if known_domain and (host == known_domain or host.endswith("." + known_domain)):
+        return True
     site_labels = host.split(".")[:-1]
     identities = [*site_labels, page.meta.get("og:site_name"), page.meta.get("author")]
     for field in ("author", "publisher"):
@@ -190,6 +255,8 @@ def search_recipe_web(author, title):
             "search_depth": "basic",
             "auto_parameters": False,
             "max_results": 5,
+            "include_domains": ITALIAN_RECIPE_DOMAINS,
+            "include_domains_mode": "prefer",
         }).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
     )
