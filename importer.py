@@ -207,10 +207,16 @@ def import_recipe(url):
         if result:
             return {**record, "source": "caption_link", "needs_confirmation": False, **result}
 
-    if italian_caption(caption) or (
+    numbered_recipe = (
         re.search(r"(?im)^\s*1[.)]\s+", caption)
         and re.search(r"(?i)\b(?:ingredients|instructions|method|procedimento|ingredienti)\b", caption)
-    ):
+    )
+    ingredient_section = re.search(r"(?im)^[ \t]*(?:ingredients|ingredienti)[ \t]*:[ \t]*\S*", caption)
+    short_method = ingredient_section and re.search(
+        r"(?im)^[ \t]*(?:bake|roast|cook|air[- ]fry|fry|boil|cuoci|inforna|friggi|lessa)\s+\S",
+        caption[ingredient_section.end():],
+    )
+    if italian_caption(caption) or numbered_recipe or short_method:
         return {**record, "source": "caption", "needs_confirmation": False, "caption": caption}
     result = search_author_blog(author, title)
     if result:
