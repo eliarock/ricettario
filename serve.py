@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import archive_db
-from importer import import_recipe, italian_caption, translate
+from importer import TranslationQuotaExceeded, import_recipe, italian_caption, translate
 
 RENDER = os.environ.get("RENDER") == "true"
 HOST = "0.0.0.0" if RENDER else "127.0.0.1"
@@ -77,7 +77,7 @@ def preview(record):
     original = italian_caption(record.get("caption", ""))
     if original:
         return {**common, **original, "translated": True}
-    if os.getenv("OPENAI_API_KEY"):
+    if os.getenv("GEMINI_API_KEY"):
         return {**common, **translate(record)["scheda"], "translated": True}
     if RENDER:
         raise TranslationUnavailable
@@ -208,8 +208,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             recipe = preview(record)
+        except TranslationQuotaExceeded as error:
+            self.reply(429, json.dumps({"error": str(error)}).encode())
+            return
         except TranslationUnavailable:
-            message = "Ricetta trovata. Per elaborarla in italiano, configura OPENAI_API_KEY su Render."
+            message = "Ricetta trovata. Per elaborarla in italiano, configura GEMINI_API_KEY su Render."
             self.reply(503, json.dumps({"error": message}).encode())
             return
         except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
