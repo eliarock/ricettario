@@ -23,7 +23,7 @@
   input { min-width:0; flex:1; border:1px solid #a99a83; background:#fffefa; color:var(--ink); }
   button { background:var(--accent); color:#fff; border:1px solid transparent; font-weight:650; cursor:pointer; }
   button:hover { background:#6a3424; }
-  button:disabled { opacity:.65; cursor:wait; }
+  button:disabled { opacity:.65; cursor:not-allowed; }
   :focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
   #status { min-height:1.6rem; color:var(--muted); }
   article { margin-top:1.5rem; background:#fffefa; padding:clamp(1.2rem,4vw,2.5rem); border:1px solid var(--rule); }
@@ -125,8 +125,14 @@
     }
     article.hidden = false;
   }
+  const pagesPreview = window.location.hostname.endsWith('.github.io');
+  if (pagesPreview) {
+    button.disabled = true;
+    status.textContent = 'Anteprima del ricettario. L’importazione sarà disponibile quando il server sarà collegato.';
+  }
   form.addEventListener('submit', async event => {
     event.preventDefault();
+    if (pagesPreview) return;
     button.disabled = true;
     status.textContent = 'Sto cercando la ricetta…';
     article.hidden = true;
@@ -136,6 +142,9 @@
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({url:byId('url').value.trim()}),
       });
+      if (!response.headers.get('Content-Type')?.includes('application/json')) {
+        throw new Error('Il servizio di importazione non risponde. Riprova più tardi.');
+      }
       const recipe = await response.json();
       if (!response.ok) throw new Error(recipe.error);
       render(recipe);
