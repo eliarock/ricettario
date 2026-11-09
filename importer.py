@@ -515,6 +515,7 @@ CATEGORY_RULES = {
     "contorni": r"\b(?:contorn[oi]|side dishes|side dish)\b",
     "piatti-unici": r"\b(?:piatt[oi] unic[oi]|bowl|tort[ae] salat[ae])\b",
     "pane": r"\b(?:pan[ei]|bread|pizz[ae]|focacc(?:ia|e)|piadin[ae]|lievitat[oi])\b",
+    "colazione": r"\b(?:colazion[ei]|breakfasts?|overnight oats)\b",
     "snack": r"\b(?:snacks?|spuntin[oi]|nuggets|bastoncini)\b",
     "dolci": r"\b(?:dolc[ei]|desserts?|cheesecake|biscott[oi]|cookies?|muffins?|cake|tort[ae](?! salat[ae]))\b",
     "salse": r"\b(?:sals[ae]|condiment[oi]|sauces?|dressings?)\b",
@@ -568,7 +569,8 @@ def translate(record, *, allow_missing=False, screenshots=()):
         "Se la fonte è già in italiano, mantienila in italiano. "
         "Usa i gradi Celsius e traduci i nomi comuni degli ingredienti. "
         "Aggiungi categorie come lista di codici tra: " + ", ".join(CATEGORY_RULES) + ". "
-        "Assegna solo categorie giustificate dalla fonte. Usa vegano o vegetariano solo se "
+        "Assegna solo categorie giustificate dalla fonte. Usa colazione per ricette "
+        "presentate come colazione o tipiche della colazione. Usa vegano o vegetariano solo se "
         "dichiarato o se l’elenco degli ingredienti è completo e lo conferma. "
         "Usa veloce solo se il tempo totale dichiarato è al massimo 30 minuti."
     )
