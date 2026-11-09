@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import archive_db
-from importer import import_recipe, translate
+from importer import import_recipe, italian_caption, translate
 
 RENDER = os.environ.get("RENDER") == "true"
 HOST = "0.0.0.0" if RENDER else "127.0.0.1"
@@ -48,6 +48,10 @@ def steps(value):
     return [value] if isinstance(value, str) and value else []
 
 
+class TranslationUnavailable(Exception):
+    pass
+
+
 def preview(record):
     raw = record.get("recipe", {})
     common = {
@@ -57,8 +61,26 @@ def preview(record):
         "image": photo(raw.get("image")),
         "needs_confirmation": record["needs_confirmation"],
     }
+    language = record.get("language")
+    if isinstance(language, str) and language.lower().replace("_", "-").split("-", 1)[0] == "it":
+        return {
+            **common,
+            "titolo": raw.get("name"),
+            "ingredienti": raw.get("recipeIngredient", []),
+            "passaggi": steps(raw.get("recipeInstructions")),
+            "porzioni": raw.get("recipeYield"),
+            "tempi": {label: raw[key] for label, key in (
+                ("Preparazione", "prepTime"), ("Cottura", "cookTime"), ("Totale", "totalTime")
+            ) if raw.get(key)},
+            "translated": True,
+        }
+    original = italian_caption(record.get("caption", ""))
+    if original:
+        return {**common, **original, "translated": True}
     if os.getenv("OPENAI_API_KEY"):
         return {**common, **translate(record)["scheda"], "translated": True}
+    if RENDER:
+        raise TranslationUnavailable
     return {
         **common,
         "titolo": raw.get("name") or record.get("title"),
@@ -179,9 +201,6 @@ class Handler(BaseHTTPRequestHandler):
         except (KeyError, TypeError, ValueError, AttributeError):
             self.reply(400, b'{"error":"Inserisci un link HTTPS valido."}')
             return
-        if RENDER and not os.getenv("OPENAI_API_KEY"):
-            self.reply(503, b'{"error":"Per importare ricette in italiano configura OPENAI_API_KEY su Render."}')
-            return
         try:
             record = import_recipe(url)
         except (OSError, ValueError, KeyError, TypeError):
@@ -189,6 +208,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             recipe = preview(record)
+        except TranslationUnavailable:
+            message = "Ricetta trovata. Per elaborarla in italiano, configura OPENAI_API_KEY su Render."
+            self.reply(503, json.dumps({"error": message}).encode())
+            return
         except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
             self.log_error("Traduzione: %s", type(error).__name__)
             message = "Ricetta trovata, ma la traduzione in italiano non è riuscita. Riprova o controlla la configurazione API su Render."

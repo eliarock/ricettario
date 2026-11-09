@@ -21,6 +21,7 @@ class Page(HTMLParser):
     def __init__(self, html):
         super().__init__()
         self.meta = {}
+        self.language = None
         self.links = []
         self.json_ld = []
         self.script = None
@@ -28,6 +29,8 @@ class Page(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if tag == "html":
+            self.language = attrs.get("lang")
         if tag == "meta" and attrs.get("content"):
             self.meta[attrs.get("property") or attrs.get("name")] = attrs["content"]
         if tag == "a" and attrs.get("href"):
@@ -120,7 +123,8 @@ def read_blog(url):
     final, page = fetch(url)
     recipe = next(recipes(page.json_ld), None)
     if recipe:
-        return {"blog": final, "recipe": recipe}
+        language = recipe.get("inLanguage") or page.language or page.meta.get("og:locale")
+        return {"blog": final, "recipe": recipe, "language": language}
 
 
 def search_author_blog(author, title):
@@ -142,6 +146,26 @@ def search_author_blog(author, title):
         result = read_blog(candidate)
         if result:
             return result
+
+
+def italian_caption(caption):
+    """Extract a recipe with explicit Italian section headings."""
+    lines = [line.strip() for line in caption.splitlines() if line.strip()]
+    ingredients_at = None
+    for position, line in enumerate(lines):
+        heading = re.sub(r"^[^\w]+", "", line)
+        if re.fullmatch(r"ingredienti\s*:?", heading, re.IGNORECASE):
+            ingredients_at = position
+        if ingredients_at is not None and re.fullmatch(r"(procedimento|preparazione)\s*:?", heading, re.IGNORECASE):
+            ingredients = [re.sub(r"^[•\-–]\s*", "", item) for item in lines[ingredients_at + 1:position]]
+            steps = []
+            for item in lines[position + 1:]:
+                if item.startswith("#"):
+                    break
+                steps.append(re.sub(r"^(?:\d+[.)]|[•\-–])\s*", "", item))
+            if ingredients and steps:
+                title = lines[0] if ingredients_at else "Ricetta dal Reel"
+                return {"titolo": title, "ingredienti": ingredients, "passaggi": steps}
 
 
 def import_recipe(url):
@@ -171,7 +195,10 @@ def import_recipe(url):
         if result:
             return {**record, "source": "caption_link", "needs_confirmation": False, **result}
 
-    if re.search(r"(?im)^\s*1[.)]\s+", caption) and re.search(r"(?i)\b(?:ingredients|instructions|method|procedimento|ingredienti)\b", caption):
+    if italian_caption(caption) or (
+        re.search(r"(?im)^\s*1[.)]\s+", caption)
+        and re.search(r"(?i)\b(?:ingredients|instructions|method|procedimento|ingredienti)\b", caption)
+    ):
         return {**record, "source": "caption", "needs_confirmation": False, "caption": caption}
     result = search_author_blog(author, title)
     if result:
