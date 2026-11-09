@@ -9,6 +9,7 @@ import re
 import socket
 from html import unescape
 from html.parser import HTMLParser
+from unicodedata import normalize
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
@@ -341,7 +342,7 @@ def italian_caption(caption):
     ]
     ingredients_at = None
     for position, line in enumerate(lines):
-        heading = re.sub(r"^\W+|\W+$", "", line).casefold()
+        heading = re.sub(r"^\W+|\W+$", "", normalize("NFKC", line)).casefold()
         if heading == "ingredienti":
             ingredients_at = position
             continue
@@ -431,14 +432,15 @@ def import_recipe(url):
         if result:
             return {**record, "source": "caption_link", "needs_confirmation": False, **result}
 
+    caption_for_detection = normalize("NFKC", caption)
     numbered_recipe = (
-        re.search(r"(?im)^\s*1[.)]\s+", caption)
-        and re.search(r"(?i)\b(?:ingredients|instructions|method|procedimento|ingredienti)\b", caption)
+        re.search(r"(?im)^\s*1[.)]\s+", caption_for_detection)
+        and re.search(r"(?i)\b(?:ingredients|instructions|method|procedimento|ingredienti)\b", caption_for_detection)
     )
-    ingredient_section = re.search(r"(?im)^[ \t]*(?:ingredients|ingredienti)[ \t]*:[ \t]*\S*", caption)
+    ingredient_section = re.search(r"(?im)^[ \t]*(?:ingredients|ingredienti)[ \t]*:[ \t]*\S*", caption_for_detection)
     short_method = ingredient_section and re.search(
         r"(?im)^[ \t]*(?:bake|roast|cook|air[- ]fry|fry|boil|cuoci|inforna|friggi|lessa)\s+\S",
-        caption[ingredient_section.end():],
+        caption_for_detection[ingredient_section.end():],
     )
     # Some social pages flatten the ingredient list and directions into one paragraph.
     inline_recipe = re.search(
@@ -446,7 +448,7 @@ def import_recipe(url):
         r".*?\d+\s*(?:[^\W\d_]|[¼½¾])"
         r".*?\b(?:taglia|mescola|cuoci|inforna|frulla|lessa|friggi|"
         r"chop|mix|bake|roast|cook|preheat|whisk|blend|boil|fry)\s+\S",
-        caption,
+        caption_for_detection,
     )
     if italian_recipe or numbered_recipe or short_method or inline_recipe:
         return {**record, "source": "caption", "needs_confirmation": False, "caption": caption}
