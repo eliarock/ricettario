@@ -437,7 +437,15 @@ def import_recipe(url):
         r"(?im)^[ \t]*(?:bake|roast|cook|air[- ]fry|fry|boil|cuoci|inforna|friggi|lessa)\s+\S",
         caption[ingredient_section.end():],
     )
-    if italian_recipe or numbered_recipe or short_method:
+    # Some social pages flatten the ingredient list and directions into one paragraph.
+    inline_recipe = re.search(
+        r"(?is)\b(?:ingredienti|ingredients)\s*(?:\([^)\n]*\)\s*)?:"
+        r".*?\d+\s*(?:[^\W\d_]|[¼½¾])"
+        r".*?\b(?:taglia|mescola|cuoci|inforna|frulla|lessa|friggi|"
+        r"chop|mix|bake|roast|cook|preheat|whisk|blend|boil|fry)\s+\S",
+        caption,
+    )
+    if italian_recipe or numbered_recipe or short_method or inline_recipe:
         return {**record, "source": "caption", "needs_confirmation": False, "caption": caption}
     try:
         result = search_author_blog(author, title)
