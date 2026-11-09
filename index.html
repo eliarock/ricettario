@@ -99,6 +99,19 @@
     .mast span { font-size:.65rem; }
   }
   @media print { main,article { padding:0; box-shadow:none; border-radius:0; } }
+  .recipe-editor { width:min(42rem, calc(100% - 1.5rem)); max-height:calc(100dvh - 1.5rem); padding:0; border:1px solid var(--rule); border-radius:.65rem; background:#fffefa; color:var(--ink); box-shadow:0 16px 54px #28271f40; }
+  .recipe-editor::backdrop { background:#28271f80; }
+  .editor-form { padding:clamp(1rem,4vw,2rem); }
+  .editor-form h2 { font-size:clamp(1.8rem,5vw,2.65rem); }
+  .editor-form p { margin:.5rem 0 1rem; color:var(--muted); }
+  .editor-fields { display:grid; gap:.85rem; }
+  .editor-meta { display:grid; grid-template-columns:1fr 2fr; gap:.85rem; }
+  .editor-form input,.editor-form textarea { width:100%; }
+  .editor-form textarea { display:block; border:1px solid #a99a83; border-radius:.28rem; padding:.65rem .75rem; color:var(--ink); background:#fffefa; font:inherit; resize:vertical; }
+  .editor-form .recipe-actions { margin-top:1rem; }
+  .editor-form #editor-error { margin:0; color:var(--accent); }
+  .editor-form #editor-error:empty { display:none; }
+  @media (max-width:34rem) { .editor-meta { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -129,6 +142,7 @@
     <p id="sources"></p>
     <div class="screen recipe-actions">
       <button type="button" id="save">Salva ricetta</button>
+      <button class="quiet" type="button" id="edit">Modifica ricetta</button>
       <button class="quiet" type="button" id="print">Stampa ricetta</button>
       <button class="quiet" type="button" id="close">Chiudi scheda</button>
     </div>
@@ -145,6 +159,27 @@
     <button class="quiet" type="button" id="migrate" hidden>Trasferisci le ricette di questo browser</button>
     <button class="quiet" type="button" id="retry-archive" hidden>Ricarica archivio</button>
   </section>
+  <dialog class="screen recipe-editor" id="editor" aria-labelledby="editor-title">
+    <form id="editor-form" class="editor-form">
+      <h2 id="editor-title">Modifica ricetta</h2>
+      <p>Scrivi un ingrediente o un passaggio per riga.</p>
+      <div class="editor-fields">
+        <div><label for="edit-title">Titolo</label><input id="edit-title" required maxlength="250"></div>
+        <div class="editor-meta">
+          <div><label for="edit-portions">Porzioni</label><input id="edit-portions" maxlength="80" placeholder="Es. 4"></div>
+          <div><label for="edit-times">Tempi</label><input id="edit-times" maxlength="300" placeholder="Es. Preparazione 15 min, cottura 25 min"></div>
+        </div>
+        <div><label for="edit-ingredients">Ingredienti e dosi</label><textarea id="edit-ingredients" rows="5"></textarea></div>
+        <div><label for="edit-steps">Procedimento</label><textarea id="edit-steps" rows="5"></textarea></div>
+        <div id="edit-caption-wrap" hidden><label for="edit-caption">Descrizione originale</label><textarea id="edit-caption" rows="4"></textarea></div>
+        <p id="editor-error" role="alert"></p>
+      </div>
+      <div class="recipe-actions">
+        <button id="editor-save" type="submit">Salva modifiche</button>
+        <button id="editor-cancel" type="button" class="quiet">Annulla</button>
+      </div>
+    </form>
+  </dialog>
 </main>
 <script>
   const byId = id => document.getElementById(id);
@@ -161,6 +196,7 @@
   };
   const storageKey = 'ricettario.archive.v1';
   let current;
+  let currentSaved = false;
   let returnFocus;
   let archiveMode = 'loading';
   let onlineEntries = [];
@@ -170,6 +206,10 @@
   const retryArchive = byId('retry-archive');
   const feedback = byId('recipe-feedback');
   const saveButton = byId('save');
+  const editor = byId('editor');
+  const editorSave = byId('editor-save');
+  const editorCancel = byId('editor-cancel');
+  const editorError = byId('editor-error');
   const search = byId('search');
   const https = value => typeof value === 'string' && value.startsWith('https://');
 
@@ -308,13 +348,15 @@
 
   function render(recipe, key, trigger, saved = false) {
     current = {recipe, key};
+    currentSaved = saved;
     returnFocus = trigger;
     feedback.textContent = '';
     saveButton.hidden = saved;
     byId('title').textContent = recipe.titolo || 'Ricetta importata';
-    byId('meta').textContent = [recipe.author, recipe.porzioni && recipe.porzioni + ' porzioni',
-      ...(typeof recipe.tempi === 'string' ? [recipe.tempi] :
-        Object.entries(recipe.tempi || {}).filter(([, value]) => value).map(([key, value]) => key + ' · ' + value))
+    const portions = recipe.porzioni ? String(recipe.porzioni) : '';
+    byId('meta').textContent = [
+      recipe.author, portions && (/porzion|person/i.test(portions) ? portions : portions + ' porzioni'),
+      formatTimes(recipe.tempi),
     ].filter(Boolean).join('  /  ');
     const photo = byId('photo');
     photo.hidden = !recipe.image;
@@ -329,7 +371,7 @@
     byId('notice').hidden = !notes.length;
     byId('caption').textContent = recipe.descrizione || '';
     byId('caption').hidden = !recipe.descrizione;
-    byId('columns').hidden = Boolean(recipe.descrizione);
+    byId('columns').hidden = Boolean(recipe.descrizione && !recipe.ingredienti?.length && !recipe.passaggi?.length);
     setList('ingredients', recipe.ingredienti);
     setList('steps', recipe.passaggi);
     const sources = byId('sources');
@@ -393,23 +435,100 @@
     }
   });
 
+  function formatTimes(times) {
+    if (typeof times === 'string') return times;
+    return Object.entries(times || {}).filter(([, value]) => value)
+      .map(([label, value]) => label + ' · ' + value).join('  /  ');
+  }
+
+  async function persistEntry(entry) {
+    if (archiveBusy || !['local', 'online'].includes(archiveMode)) {
+      throw new Error('L’archivio non è disponibile. Riprova tra poco.');
+    }
+    if (archiveMode === 'online') {
+      await mutateOnline({action:'save', entries:[entry]});
+    } else {
+      const remaining = readArchive().filter(item => item.key !== entry.key);
+      localStorage.setItem(storageKey, JSON.stringify([entry, ...remaining]));
+      renderArchive();
+    }
+  }
+
   saveButton.addEventListener('click', async () => {
-    if (!current || archiveBusy || !['local','online'].includes(archiveMode)) return;
+    if (!current || archiveBusy) return;
     const entry = current;
     try {
-      if (archiveMode === 'online') {
-        await mutateOnline({action:'save', entries:[entry]});
-      } else {
-        const remaining = readArchive().filter(item => item.key !== entry.key);
-        localStorage.setItem(storageKey, JSON.stringify([entry, ...remaining]));
-        renderArchive();
-      }
+      await persistEntry(entry);
       if (current !== entry) return;
+      currentSaved = true;
       saveButton.hidden = true;
       feedback.textContent = 'Salvata nelle mie ricette.';
       byId('print').focus();
     } catch {
       feedback.textContent = 'Impossibile salvare la ricetta. Riprova tra poco.';
+    }
+  });
+
+  const linesForEdit = values => Array.isArray(values) ? values.join('\n') : '';
+  const editedLines = id => byId(id).value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+
+  byId('edit').addEventListener('click', () => {
+    if (!current || archiveBusy || editor.open) return;
+    const {recipe} = current;
+    byId('edit-title').value = recipe.titolo || '';
+    byId('edit-portions').value = String(recipe.porzioni ?? '');
+    byId('edit-times').value = formatTimes(recipe.tempi);
+    byId('edit-ingredients').value = linesForEdit(recipe.ingredienti);
+    byId('edit-steps').value = linesForEdit(recipe.passaggi);
+    byId('edit-caption').value = recipe.descrizione || '';
+    byId('edit-caption-wrap').hidden = !recipe.descrizione;
+    editorSave.textContent = currentSaved ? 'Salva modifiche' : 'Applica modifiche';
+    editorError.textContent = '';
+    editor.showModal();
+    byId('edit-title').focus();
+  });
+
+  editorCancel.addEventListener('click', () => editor.close());
+  editor.addEventListener('cancel', event => {
+    if (editorSave.disabled) event.preventDefault();
+  });
+
+  byId('editor-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!current || editorSave.disabled) return;
+    const title = byId('edit-title').value.trim();
+    if (!title) {
+      editorError.textContent = 'Inserisci un titolo.';
+      byId('edit-title').focus();
+      return;
+    }
+    const entry = current;
+    const saved = currentSaved;
+    const trigger = returnFocus;
+    const times = byId('edit-times').value.trim();
+    const recipe = {
+      ...entry.recipe,
+      titolo: title,
+      porzioni: byId('edit-portions').value.trim() || null,
+      tempi: times === formatTimes(entry.recipe.tempi).trim() ? entry.recipe.tempi : times || null,
+      ingredienti: editedLines('edit-ingredients'),
+      passaggi: editedLines('edit-steps'),
+      descrizione: byId('edit-caption').value.trim() || null,
+    };
+    editorError.textContent = '';
+    editorSave.disabled = true;
+    editorCancel.disabled = true;
+    try {
+      if (saved) await persistEntry({...entry, recipe});
+      editor.close();
+      if (current !== entry) return;
+      render(recipe, entry.key, trigger, saved);
+      feedback.textContent = saved ? 'Modifiche salvate.' : 'Modifiche applicate. Puoi salvare o stampare la scheda.';
+    } catch {
+      editorError.textContent = 'Impossibile salvare le modifiche. Riprova.';
+    } finally {
+      editorSave.disabled = false;
+      editorCancel.disabled = false;
     }
   });
   byId('close').addEventListener('click', () => closeRecipe());
