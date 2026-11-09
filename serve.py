@@ -29,6 +29,10 @@ def render_origin():
 ORIGIN = render_origin() if RENDER else f"http://{HOST}:{PORT}"
 EXPECTED_HOST = urlsplit(ORIGIN).netloc
 INDEX = Path(__file__).with_name("index.html")
+ICONS = {
+    "/favicon.svg": "image/svg+xml",
+    "/apple-touch-icon.png": "image/png",
+}
 
 
 def photo(value):
@@ -114,6 +118,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def do_GET(self):
+        path = urlsplit(self.path).path
+        if path in ICONS:
+            self.reply(200, INDEX.with_name(path[1:]).read_bytes(), ICONS[path])
+            return
         if RENDER and self.path == "/health":
             self.reply(200, b'{"status":"ok"}')
             return
