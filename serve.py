@@ -133,8 +133,8 @@ if __name__ == "__main__":
     password = os.environ.get("RICETTARIO_PASSWORD")
     if not password:
         raise SystemExit("Imposta RICETTARIO_PASSWORD e avvia nuovamente il server.")
-    if RENDER and len(password) < 16:
-        raise SystemExit("RICETTARIO_PASSWORD deve contenere almeno 16 caratteri.")
+    if RENDER and len(password) < 8:
+        raise SystemExit("RICETTARIO_PASSWORD deve contenere almeno 8 caratteri.")
     if RENDER and not EXPECTED_HOST:
         raise SystemExit("URL pubblico Render mancante: controlla RENDER_EXTERNAL_URL e RENDER_EXTERNAL_HOSTNAME.")
     with ThreadingHTTPServer((HOST, PORT), Handler) as server:
