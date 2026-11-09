@@ -14,7 +14,10 @@ from urllib.parse import urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 FACEBOOK = {"facebook.com", "www.facebook.com", "m.facebook.com", "fb.watch"}
-AUTHOR_BLOGS = {"dr. vegan": "https://drveganblog.com/"}
+AUTHOR_BLOGS = {
+    "dr. vegan": "https://drveganblog.com/",
+    "moltofood": "https://www.moltofood.it/",
+}
 MAX_HTML = 8 * 1024 * 1024
 
 
@@ -129,13 +132,14 @@ def read_blog(url):
 
 
 def search_author_blog(author, title):
-    blog = AUTHOR_BLOGS.get(author.casefold())
+    blog = AUTHOR_BLOGS.get(author.strip().casefold())
     if not blog:
         return None
     terms = set(re.findall(r"[a-z0-9]+", title.casefold()))
     if not terms:
         return None
-    _, search = fetch(blog + "?" + urlencode({"s": title}))
+    query = " ".join(re.sub(r"[^\w\s'’-]", " ", title).split())
+    _, search = fetch(blog + "?" + urlencode({"s": query}))
     links = dict.fromkeys(urljoin(blog, href).split("#", 1)[0] for href in search.links)
     for candidate in links:
         parts = urlsplit(candidate)
