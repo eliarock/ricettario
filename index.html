@@ -114,7 +114,7 @@
   <section class="screen import-panel" id="nuova-ricetta" aria-labelledby="import-title">
     <div class="hero-copy">
       <h1 id="import-title">Il mio ricettario</h1>
-      <p id="intro" class="intro">Salva le ricette che vuoi provare. Incolla il link di un Reel o di un blog di cucina.</p>
+      <p id="intro" class="intro">Salva le ricette che vuoi provare. Incolla il link di un Reel, di un TikTok o di un blog di cucina.</p>
       <form id="form">
         <label for="url">Link della ricetta</label>
         <div class="entry"><input id="url" type="url" placeholder="https://…" autocomplete="url" required><button id="import">Importa</button></div>
@@ -349,7 +349,7 @@
       label.textContent = title;
       const source = document.createElement('span');
       source.className = 'entry-source';
-      source.textContent = recipe.author || (recipe.blog ? 'Blog di cucina' : 'Reel');
+      source.textContent = recipe.author || (recipe.blog ? 'Blog di cucina' : 'Video');
       info.append(label, source);
       open.append(thumb, info);
       open.addEventListener('click', () => render(recipe, key, open, true));
@@ -405,7 +405,7 @@
     if (https(recipe.image)) photo.src = recipe.image;
     else photo.hidden = true;
     const notes = [
-      recipe.needs_confirmation && 'Ricetta trovata sul blog dell’autore. Verifica che corrisponda al Reel.',
+      recipe.needs_confirmation && 'Ricetta trovata sul blog dell’autore. Verifica che corrisponda al video.',
       !recipe.translated && 'Anteprima nella lingua originale. Traduzione da configurare.',
     ].filter(Boolean);
     byId('notice').textContent = notes.join(' ');
@@ -417,7 +417,7 @@
     setList('steps', recipe.passaggi);
     const sources = byId('sources');
     sources.replaceChildren('Fonti ');
-    for (const [label, url] of [['Reel', recipe.reel], ['Blog', recipe.blog]]) {
+    for (const [label, url] of [['Video', recipe.reel], ['Blog', recipe.blog]]) {
       if (typeof url !== 'string' || !url.startsWith('https://')) continue;
       const a = document.createElement('a');
       a.href = url;
@@ -433,7 +433,7 @@
     form.hidden = true;
     byId('main-nav').hidden = true;
     byId('access').hidden = false;
-    byId('intro').textContent = 'Accedi per importare una ricetta da un Reel o da un blog di cucina.';
+    byId('intro').textContent = 'Accedi per importare una ricetta da un Reel, da TikTok o da un blog di cucina.';
   } else {
     byId('archive').hidden = false;
     loadArchive();

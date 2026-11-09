@@ -14,6 +14,9 @@ from urllib.parse import urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 FACEBOOK = {"facebook.com", "www.facebook.com", "m.facebook.com", "fb.watch"}
+INSTAGRAM = {"instagram.com", "www.instagram.com", "m.instagram.com"}
+TIKTOK = {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"}
+SOCIAL_HOSTS = FACEBOOK | INSTAGRAM | TIKTOK
 AUTHOR_BLOGS = {
     "dr. vegan": "https://drveganblog.com/",
     "moltofood": "https://www.moltofood.it/",
@@ -90,7 +93,9 @@ class Page(HTMLParser):
         self.language = None
         self.links = []
         self.json_ld = []
+        self.tiktok_data = {}
         self.script = None
+        self.script_kind = None
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
@@ -101,8 +106,13 @@ class Page(HTMLParser):
             self.meta[attrs.get("property") or attrs.get("name")] = attrs["content"]
         if tag == "a" and attrs.get("href"):
             self.links.append(attrs["href"])
-        if tag == "script" and attrs.get("type") == "application/ld+json":
-            self.script = []
+        if tag == "script":
+            if attrs.get("type") == "application/ld+json":
+                self.script_kind = "recipe"
+                self.script = []
+            elif attrs.get("id") == "__UNIVERSAL_DATA_FOR_REHYDRATION__":
+                self.script_kind = "tiktok"
+                self.script = []
 
     def handle_data(self, data):
         if self.script is not None:
@@ -111,10 +121,15 @@ class Page(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "script" and self.script is not None:
             try:
-                self.json_ld.append(json.loads("".join(self.script)))
+                data = json.loads("".join(self.script))
+                if self.script_kind == "recipe":
+                    self.json_ld.append(data)
+                elif isinstance(data, dict):
+                    self.tiktok_data = data
             except ValueError:
                 pass
             self.script = None
+            self.script_kind = None
 
 
 def fetch_public(url):
@@ -242,7 +257,7 @@ def search_recipe_web(author, title):
     key = os.environ.get("TAVILY_API_KEY")
     if not key:
         raise RecipeNotFound(
-            "Non ho trovato una ricetta nel Reel. Per cercarla sul web, configura "
+            "Non ho trovato una ricetta nella descrizione del video. Per cercarla sul web, configura "
             "TAVILY_API_KEY su Render oppure incolla il link diretto alla ricetta."
         )
     terms = word_set(title)
@@ -276,7 +291,7 @@ def search_recipe_web(author, title):
             continue
         try:
             parsed = urlsplit(candidate)
-            if parsed.scheme != "https" or not parsed.hostname or parsed.hostname in FACEBOOK:
+            if parsed.scheme != "https" or not parsed.hostname or parsed.hostname in SOCIAL_HOSTS:
                 continue
             result = read_blog(candidate, expected_author=author, title_terms=terms)
         except (OSError, ValueError):
@@ -319,44 +334,92 @@ def search_author_blog(author, title):
 
 
 def italian_caption(caption):
-    """Extract a recipe with explicit Italian section headings."""
-    lines = [line.strip() for line in caption.splitlines() if line.strip()]
+    """Read Italian ingredient lists followed by written cooking directions."""
+    lines = [
+        line.strip() for line in caption.splitlines()
+        if re.search(r"\w", line) and not line.lstrip().startswith("#")
+    ]
     ingredients_at = None
     for position, line in enumerate(lines):
-        heading = re.sub(r"^[^\w]+", "", line)
-        if re.fullmatch(r"ingredienti\s*:?", heading, re.IGNORECASE):
+        heading = re.sub(r"^\W+|\W+$", "", line).casefold()
+        if heading == "ingredienti":
             ingredients_at = position
-        if ingredients_at is not None and re.fullmatch(r"(procedimento|preparazione)\s*:?", heading, re.IGNORECASE):
+            continue
+        if ingredients_at is None:
+            continue
+        labeled_method = heading in {"procedimento", "preparazione"}
+        cooking_line = re.match(r"(?i)^(?:in\s+)?forno\b", line) and re.search(
+            r"(?i)\d+\s*(?:°|minut|min\b)", line
+        )
+        if labeled_method or cooking_line:
             ingredients = [re.sub(r"^[•\-–]\s*", "", item) for item in lines[ingredients_at + 1:position]]
-            steps = []
-            for item in lines[position + 1:]:
-                if item.startswith("#"):
-                    break
-                steps.append(re.sub(r"^(?:\d+[.)]|[•\-–])\s*", "", item))
+            method = lines[position + int(labeled_method):]
+            steps = [re.sub(r"^(?:\d+[.)]|[•\-–])\s*", "", item) for item in method]
             if ingredients and steps:
-                title = lines[0] if ingredients_at else "Ricetta dal Reel"
+                title = lines[ingredients_at - 1] if ingredients_at else "Ricetta dal Reel"
                 return {"titolo": title, "ingredienti": ingredients, "passaggi": steps}
 
 
+def social_caption(final, page, host):
+    """Return the public caption and author from a social video page."""
+    og_title = page.meta.get("og:title", "")
+    if host in FACEBOOK:
+        _, separator, caption_author = og_title.partition(" | ")
+        caption, author_separator, author = caption_author.rpartition(" | ")
+        if separator and author_separator:
+            return caption, author
+
+    if host in INSTAGRAM:
+        canonical = page.meta.get("og:url") or final
+        path = urlsplit(canonical).path
+        reel = re.fullmatch(r"/(?:([\w.]+)/)?reel/[\w-]+/?", path)
+        if reel:
+            author, separator, caption = og_title.partition(" on Instagram:")
+            if separator and caption.strip():
+                return caption.strip().removeprefix('"').removesuffix('"'), author
+            description = page.meta.get("og:description")
+            if description and reel.group(1):
+                return description, reel.group(1)
+
+    if host in TIKTOK:
+        video = re.fullmatch(r"/@([\w.-]+)/video/(\d+)/?", urlsplit(final).path)
+        if video:
+            scope = page.tiktok_data.get("__DEFAULT_SCOPE__", {})
+            detail = scope.get("webapp.video-detail", {})
+            item = detail.get("itemInfo", {}).get("itemStruct", {})
+            if item.get("id") == video.group(2) and item.get("desc"):
+                author = item.get("author") or {}
+                return item["desc"], author.get("nickname") or video.group(1)
+            description = page.meta.get("og:description")
+            match = re.search(r"TikTok video from (.+?) \(@[\w.-]+\):\s*(.+)", description or "", re.DOTALL)
+            if match:
+                return match.group(2), match.group(1)
+
+    raise RecipeNotFound("Il social non ha restituito la descrizione del video. Se disponibile, incolla il link diretto al blog.")
+
+
 def import_recipe(url):
-    if urlsplit(url).hostname not in FACEBOOK:
+    host = urlsplit(url).hostname
+    if host not in SOCIAL_HOSTS:
         result = read_blog(url)
         if not result:
             raise ValueError("Nessuna ricetta strutturata nella pagina.")
         return {"source": "blog", "needs_confirmation": False, **result}
 
     final, page = fetch(url)
+    if urlsplit(final).hostname not in SOCIAL_HOSTS:
+        raise RecipeNotFound("Il link social non porta a un video leggibile.")
     reel = final.split("?", 1)[0]
-    og_title = page.meta.get("og:title", "")
-    _, separator, caption_author = og_title.partition(" | ")
-    caption, author_separator, author = caption_author.rpartition(" | ")
-    if not separator or not author_separator:
-        raise ValueError("Facebook non ha restituito una descrizione leggibile.")
-    title = caption.splitlines()[0].strip()
+    caption, author = social_caption(final, page, host)
+    caption = caption.strip()
+    if not caption:
+        raise RecipeNotFound("La descrizione del video è vuota. Se disponibile, incolla il link diretto al blog.")
+    italian_recipe = italian_caption(caption)
+    title = italian_recipe["titolo"] if italian_recipe else caption.splitlines()[0].strip()
     record = {"reel": reel, "author": author, "title": title}
     for link in re.findall(r'https://[^\s<>"\']+', caption):
         link = unescape(link).rstrip(".,);")
-        if urlsplit(link).hostname in FACEBOOK:
+        if urlsplit(link).hostname in SOCIAL_HOSTS:
             continue
         try:
             result = read_blog(link)
@@ -374,7 +437,7 @@ def import_recipe(url):
         r"(?im)^[ \t]*(?:bake|roast|cook|air[- ]fry|fry|boil|cuoci|inforna|friggi|lessa)\s+\S",
         caption[ingredient_section.end():],
     )
-    if italian_caption(caption) or numbered_recipe or short_method:
+    if italian_recipe or numbered_recipe or short_method:
         return {**record, "source": "caption", "needs_confirmation": False, "caption": caption}
     try:
         result = search_author_blog(author, title)
@@ -385,7 +448,7 @@ def import_recipe(url):
     if result:
         return {**record, "source": "author_blog", "needs_confirmation": True, **result}
     raise RecipeNotFound(
-        "Ho trovato il Reel, ma nessuna ricetta verificabile sul web. Incolla il link diretto al blog, se disponibile."
+        "Ho trovato il video, ma nessuna ricetta verificabile sul web. Incolla il link diretto al blog, se disponibile."
     )
 
 
