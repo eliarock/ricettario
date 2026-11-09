@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import archive_db
-from importer import TranslationQuotaExceeded, import_recipe, italian_caption, translate
+from importer import RecipeNotFound, TranslationQuotaExceeded, import_recipe, italian_caption, translate
 
 RENDER = os.environ.get("RENDER") == "true"
 HOST = "0.0.0.0" if RENDER else "127.0.0.1"
@@ -203,6 +203,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             record = import_recipe(url)
+        except RecipeNotFound as error:
+            self.reply(422, json.dumps({"error": str(error)}).encode())
+            return
         except (OSError, ValueError, KeyError, TypeError):
             self.reply(422, b'{"error":"Importazione fallita. Controlla il link e riprova."}')
             return

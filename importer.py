@@ -123,12 +123,99 @@ def recipes(value):
         yield from recipes(value.get("@graph"))
 
 
-def read_blog(url):
+def word_set(value):
+    return set(re.findall(r"[^\W_]+", str(value or "").casefold()))
+
+
+def title_matches(terms, value):
+    words = word_set(value)
+    return bool(terms) and all(
+        term in words or any(
+            term + ending in words or (term.endswith(ending) and term[:-len(ending)] in words)
+            for ending in ("s", "es")
+        )
+        for term in terms
+    )
+
+
+def author_matches(author, final, page, recipe):
+    host = urlsplit(final).hostname or ""
+    site_labels = host.split(".")[:-1]
+    identities = [*site_labels, page.meta.get("og:site_name"), page.meta.get("author")]
+    for field in ("author", "publisher"):
+        names = recipe.get(field, [])
+        for name in names if isinstance(names, list) else [names]:
+            identities.append(name.get("name") if isinstance(name, dict) else name)
+    expected = word_set(author)
+    if not expected:
+        return False
+    compact = re.sub(r"[\W_]", "", author.casefold())
+    return any(
+        expected.issubset(word_set(identity))
+        or compact == re.sub(r"[\W_]", "", str(identity or "").casefold())
+        for identity in identities
+    )
+
+
+def read_blog(url, *, expected_author=None, title_terms=None):
     final, page = fetch(url)
-    recipe = next(recipes(page.json_ld), None)
-    if recipe:
+    for recipe in recipes(page.json_ld):
+        if expected_author is not None and (
+            not title_matches(title_terms, recipe.get("name"))
+            or not author_matches(expected_author, final, page, recipe)
+        ):
+            continue
         language = recipe.get("inLanguage") or page.language or page.meta.get("og:locale")
         return {"blog": final, "recipe": recipe, "language": language}
+
+
+class RecipeNotFound(ValueError):
+    pass
+
+
+def search_recipe_web(author, title):
+    key = os.environ.get("TAVILY_API_KEY")
+    if not key:
+        raise RecipeNotFound(
+            "Non ho trovato una ricetta nel Reel. Per cercarla sul web, configura "
+            "TAVILY_API_KEY su Render oppure incolla il link diretto alla ricetta."
+        )
+    terms = word_set(title)
+    if not terms or not author.strip():
+        return None
+    request = Request(
+        "https://api.tavily.com/search",
+        data=json.dumps({
+            "query": f"{title[:180]} {author[:100]} ricetta recipe",
+            "search_depth": "basic",
+            "auto_parameters": False,
+            "max_results": 5,
+        }).encode(),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=8) as response:
+            results = json.load(response)["results"]
+    except (OSError, ValueError, KeyError) as error:
+        raise RecipeNotFound(
+            "La ricerca sul web non è disponibile. Riprova più tardi o incolla il link diretto alla ricetta."
+        ) from error
+
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        candidate = item.get("url")
+        if not isinstance(candidate, str):
+            continue
+        try:
+            parsed = urlsplit(candidate)
+            if parsed.scheme != "https" or not parsed.hostname or parsed.hostname in FACEBOOK:
+                continue
+            result = read_blog(candidate, expected_author=author, title_terms=terms)
+        except (OSError, ValueError):
+            continue
+        if result:
+            return result
 
 
 def search_author_blog(author, title):
@@ -222,10 +309,17 @@ def import_recipe(url):
     )
     if italian_caption(caption) or numbered_recipe or short_method:
         return {**record, "source": "caption", "needs_confirmation": False, "caption": caption}
-    result = search_author_blog(author, title)
+    try:
+        result = search_author_blog(author, title)
+    except (OSError, ValueError):
+        result = None
+    if not result:
+        result = search_recipe_web(author, title)
     if result:
         return {**record, "source": "author_blog", "needs_confirmation": True, **result}
-    raise ValueError("Ricetta non trovata nella descrizione o nel blog configurato.")
+    raise RecipeNotFound(
+        "Ho trovato il Reel, ma nessuna ricetta verificabile sul web. Incolla il link diretto al blog, se disponibile."
+    )
 
 
 class TranslationQuotaExceeded(ValueError):
