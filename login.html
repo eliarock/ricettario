@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accedi al ricettario di Elia</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Ricettario">
+<style>
+  :root{color-scheme:light;--ink:#2c221c;--paper:#fffaf1;--accent:#a33124;--dark:#792218}
+  *{box-sizing:border-box}
+  body{margin:0;border-top:.2rem solid var(--accent);background:var(--paper);color:var(--ink);font:1rem/1.5 system-ui,sans-serif}
+  main{width:min(100% - 1.5rem,26rem);margin:clamp(1rem,5vw,3rem) auto}
+  img{display:block;width:8rem;height:auto;margin:0 auto 1.25rem}
+  form{display:grid;gap:1rem;padding:clamp(1rem,4vw,1.75rem);border:1px solid #ead2a8;border-radius:1rem;background:#fff2d8}
+  h1{margin:0;font:normal clamp(1.7rem,6vw,2.2rem)/1.1 Georgia,serif}
+  label{display:block;margin:0 0 .25rem;font-size:.9rem;font-weight:700}
+  input,button{width:100%;min-height:44px;padding:.6rem .75rem;border-radius:.5rem;font:inherit}
+  input{border:1px solid #ad9b84;background:#fffefa;color:var(--ink)}
+  button{border:1px solid transparent;background:var(--accent);color:white;font-weight:700;cursor:pointer}
+  button:hover{background:var(--dark)}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+  .error{margin:0;color:var(--dark);font-size:.9rem}
+</style>
+</head>
+<body>
+<main>
+  <img src="/logo-elia.webp" width="520" height="520" alt="Il ricettario di Elia">
+  <form method="post" action="/login" aria-labelledby="login-title">
+    <h1 id="login-title">Accedi al ricettario</h1>
+    <!-- errore accesso -->
+    <div>
+      <label for="username">Nome utente</label>
+      <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    </div>
+    <div>
+      <label for="current-password">Password</label>
+      <input id="current-password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <button type="submit">Accedi</button>
+  </form>
+</main>
+</body>
+</html>

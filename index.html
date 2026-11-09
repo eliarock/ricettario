@@ -61,6 +61,7 @@
   .quiet:hover{background:#f6e9d4}
   .archive-empty{border:1px dashed #c5ad8d;border-radius:.65rem;margin:1rem 0 0;padding:1.3rem;background:var(--white);color:var(--muted)}
   #archive-note{margin:1rem 0 .5rem;font-size:.85rem}
+  .session-actions{margin-top:1.5rem}
   article{margin:2rem 0 0;padding:clamp(1.15rem,4vw,3rem);border:1px solid var(--rule);border-radius:.9rem;background:var(--white);box-shadow:0 6px 22px #452b1810;scroll-margin-top:1rem}
   .recipe-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(12rem,1fr);align-items:center;gap:1.5rem}
   .recipe-head:has(img[hidden]){grid-template-columns:1fr}
@@ -205,6 +206,9 @@
     <p id="archive-note" role="status">Caricamento archivio…</p>
     <button class="quiet" type="button" id="migrate" hidden>Trasferisci le ricette di questo browser</button>
     <button class="quiet" type="button" id="retry-archive" hidden>Ricarica archivio</button>
+    <form class="session-actions" method="post" action="/logout">
+      <button class="quiet" type="submit">Esci dal ricettario</button>
+    </form>
   </section>
   <dialog class="screen recipe-editor" id="editor" aria-labelledby="editor-title">
     <form id="editor-form" class="editor-form">

@@ -1,13 +1,16 @@
 """Anteprima locale. Avvia con RICETTARIO_PASSWORD impostata: python3 serve.py."""
 
-import base64
 import hmac
 import json
 import os
 import re
+import secrets
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from threading import Lock
+from time import monotonic
+from urllib.parse import parse_qs, urlsplit
 
 import archive_db
 from importer import CaptionExtractionFailed, RecipeNotFound, TranslationQuotaExceeded, import_recipe, italian_caption, suggested_categories, translate
@@ -30,6 +33,10 @@ def render_origin():
 ORIGIN = render_origin() if RENDER else f"http://{HOST}:{PORT}"
 EXPECTED_HOST = urlsplit(ORIGIN).netloc
 INDEX = Path(__file__).with_name("index.html")
+LOGIN = INDEX.with_name("login.html")
+USERNAME = "elia"
+SESSION_COOKIE = "__Host-ricettario" if RENDER else "ricettario"
+SESSION_AGE = 12 * 60 * 60
 STATIC_FILES = {
     "/logo-elia.webp": "image/webp",
     "/favicon.svg": "image/svg+xml",
@@ -104,24 +111,73 @@ def preview(record):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def authorized(self):
-        if self.headers.get("Host") != EXPECTED_HOST:
-            self.send_error(403)
-            return False
-        supplied = self.headers.get("Authorization", "").encode()
-        if hmac.compare_digest(supplied, self.server.authorization):
-            return True
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="Ricettario", charset="UTF-8"')
-        self.end_headers()
-        return False
+    def session_token(self):
+        cookies = SimpleCookie()
+        try:
+            cookies.load(self.headers.get("Cookie", ""))
+        except CookieError:
+            return None
+        token = cookies.get(SESSION_COOKIE)
+        return token.value if token else None
 
-    def reply(self, status, content, content_type="application/json; charset=utf-8"):
+    def authorized(self):
+        token = self.session_token()
+        with self.server.session_lock:
+            return self.server.sessions.get(token, 0) > monotonic()
+
+    def redirect_home(self, token="", max_age=0):
+        secure = "; Secure" if RENDER else ""
+        cookie = f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure}"
+        self.reply(303, b"", headers=(("Location", "/"), ("Set-Cookie", cookie)))
+
+    def login_page(self, status=200, error=""):
+        content = LOGIN.read_text(encoding="utf-8")
+        if error:
+            content = content.replace("<!-- errore accesso -->", f'<p class="error" role="alert">{error}</p>')
+        self.reply(status, content.encode(), "text/html; charset=utf-8",
+                   headers=(("Content-Security-Policy", "frame-ancestors 'none'; form-action 'self'; base-uri 'none'"),))
+
+    def login(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 16 * 1024:
+                raise ValueError
+            fields = parse_qs(self.rfile.read(length).decode("ascii"), strict_parsing=True,
+                              errors="strict", max_num_fields=2)
+            username, = fields["username"]
+            password, = fields["password"]
+        except (KeyError, ValueError):
+            self.login_page(400, "Inserisci nome utente e password.")
+            return
+
+        password_matches = hmac.compare_digest(password.encode(), self.server.password)
+        if username != USERNAME or not password_matches:
+            self.login_page(401, "Nome utente o password non corretti.")
+            return
+
+        token = secrets.token_urlsafe(32)
+        previous = self.session_token()
+        now = monotonic()
+        with self.server.session_lock:
+            self.server.sessions = {key: expires for key, expires in self.server.sessions.items() if expires > now}
+            self.server.sessions.pop(previous, None)
+            self.server.sessions[token] = now + SESSION_AGE
+        self.redirect_home(token, SESSION_AGE)
+
+    def logout(self):
+        token = self.session_token()
+        with self.server.session_lock:
+            self.server.sessions.pop(token, None)
+        self.redirect_home()
+
+    def reply(self, status, content, content_type="application/json; charset=utf-8", *, headers=()):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Length", str(len(content)))
+        for name, value in headers:
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(content)
 
@@ -133,15 +189,22 @@ class Handler(BaseHTTPRequestHandler):
         if RENDER and self.path == "/health":
             self.reply(200, b'{"status":"ok"}')
             return
-        if not self.authorized():
+        if self.headers.get("Host") != EXPECTED_HOST:
+            self.send_error(403)
+            return
+        if path in {"/", "/login"}:
+            if self.authorized():
+                self.reply(200, INDEX.read_bytes(), "text/html; charset=utf-8")
+            else:
+                self.login_page()
             return
         if self.path == "/api/archive":
-            self.archive_request()
+            if self.authorized():
+                self.archive_request()
+            else:
+                self.reply(401, b'{"error":"Accedi al ricettario."}')
             return
-        if self.path != "/":
-            self.send_error(404)
-            return
-        self.reply(200, INDEX.read_bytes(), "text/html; charset=utf-8")
+        self.send_error(404)
 
     def archive_request(self):
         if not archive_db.DATABASE_URL:
@@ -192,7 +255,20 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(503, b'{"error":"Archivio online non disponibile. Riprova tra poco."}')
 
     def do_POST(self):
+        if self.headers.get("Host") != EXPECTED_HOST:
+            self.send_error(403)
+            return
+        if self.path in {"/login", "/logout"}:
+            if self.headers.get("Origin") != ORIGIN or self.headers.get_content_type() != "application/x-www-form-urlencoded":
+                self.send_error(403)
+                return
+            if self.path == "/login":
+                self.login()
+            else:
+                self.logout()
+            return
         if not self.authorized():
+            self.reply(401, b'{"error":"Accedi al ricettario."}')
             return
         if self.path == "/api/archive":
             if self.headers.get("Origin") != ORIGIN or self.headers.get_content_type() != "application/json":
@@ -268,6 +344,8 @@ if __name__ == "__main__":
     if RENDER and not EXPECTED_HOST:
         raise SystemExit("URL pubblico Render mancante: controlla RENDER_EXTERNAL_URL e RENDER_EXTERNAL_HOSTNAME.")
     with ThreadingHTTPServer((HOST, PORT), Handler) as server:
-        server.authorization = b"Basic " + base64.b64encode(f"elia:{password}".encode())
-        print(f"Ricettario disponibile su {ORIGIN} (utente elia)", flush=True)
+        server.password = password.encode()
+        server.sessions = {}
+        server.session_lock = Lock()
+        print(f"Ricettario disponibile su {ORIGIN} (utente {USERNAME})", flush=True)
         server.serve_forever()
