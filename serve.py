@@ -30,7 +30,8 @@ def render_origin():
 ORIGIN = render_origin() if RENDER else f"http://{HOST}:{PORT}"
 EXPECTED_HOST = urlsplit(ORIGIN).netloc
 INDEX = Path(__file__).with_name("index.html")
-ICONS = {
+STATIC_FILES = {
+    "/logo-elia.webp": "image/webp",
     "/favicon.svg": "image/svg+xml",
     "/favicon.ico": "image/x-icon",
     "/icon-192.png": "image/png",
@@ -126,8 +127,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
-        if path in ICONS:
-            self.reply(200, INDEX.with_name(path[1:]).read_bytes(), ICONS[path])
+        if path in STATIC_FILES:
+            self.reply(200, INDEX.with_name(path[1:]).read_bytes(), STATIC_FILES[path])
             return
         if RENDER and self.path == "/health":
             self.reply(200, b'{"status":"ok"}')

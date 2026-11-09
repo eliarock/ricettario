@@ -40,15 +40,17 @@
   .hero-copy{padding:clamp(1.5rem,5vw,3.8rem);position:relative;z-index:1}
   .hero-copy h1{font-size:clamp(2.8rem,6vw,5.65rem);letter-spacing:-.045em;color:#472018}
   .intro{max-width:37ch;color:#5e4634;margin:.8rem 0 1.4rem}
-  .entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.5rem}
+  .entry{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:.5rem}
+  #url{display:block;line-height:1.45;overflow-wrap:anywhere;resize:vertical}
   .access{display:inline-flex;align-items:center;text-decoration:none}
   #status{margin:.7rem 0 0;color:#5e4634}
   #status:empty,#meta:empty,#editor-error:empty,#recipe-feedback:empty{display:none}
-  .hero-media{min-height:19rem;position:relative;overflow:hidden;display:grid;place-items:center;background:#efd5a6}
-  .hero-art{position:absolute;inset:0;width:100%;height:100%}
-  .feature{position:absolute;inset:0;display:grid;grid-template-rows:minmax(0,1fr) auto;padding:0;border:0;border-radius:0;background:#56372a;text-align:left}
-  .feature img{width:100%;height:100%;min-height:0;object-fit:cover;object-position:50% 60%;display:block}
-  .feature span{display:block;padding:.65rem .9rem;background:var(--white);color:var(--ink);font:1.15rem/1.25 var(--serif);overflow-wrap:anywhere}
+  .hero-media{min-height:19rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.85rem;padding:1.25rem;background:#efd5a6}
+  .hero-logo{display:block;width:min(100%,16rem);height:auto}
+  .feature{display:grid;grid-template-columns:3.25rem minmax(0,1fr);align-items:center;width:min(100%,19rem);padding:0;overflow:hidden;border:1px solid var(--rule);background:var(--white);color:var(--ink);text-align:left}
+  .feature:hover{background:#fff4dd}
+  .feature img{width:100%;aspect-ratio:1;object-fit:cover;object-position:50% 60%;display:block}
+  .feature span{display:block;padding:.45rem .65rem;font:1.05rem/1.2 var(--serif);overflow-wrap:anywhere}
   .archive{margin-top:clamp(2.5rem,6vw,5rem);scroll-margin-top:1rem}
   .archive-head{display:flex;align-items:end;justify-content:space-between;gap:1rem;border-bottom:1px solid var(--rule);padding-bottom:1rem}
   #count,#archive-note,.entry-source,#meta,#sources{color:var(--muted)}
@@ -98,7 +100,7 @@
   .editor-form .recipe-actions{margin-top:1rem}
   .editor-form #editor-error{margin:0;color:var(--accent)}
   @media(max-width:54rem){.archive-list{grid-template-columns:repeat(2,minmax(0,1fr))}.import-panel{grid-template-columns:minmax(0,1.35fr) minmax(10rem,.75fr)}}
-  @media(max-width:37rem){.mast-inner,main{width:calc(100% - 1.25rem)}.mast-inner{min-height:3.9rem}.brand{font-size:1.4rem}.brand-icon{width:1.85rem;height:1.85rem}.mast nav{gap:.3rem .55rem;flex-wrap:nowrap}.mast nav a{font-size:.77rem;white-space:nowrap}.mast nav a[href="#nuova-ricetta"]{display:none}.import-panel{grid-template-columns:1fr}.hero-media{min-height:0;aspect-ratio:2.6/1}.feature span{font-size:.98rem}.hero-copy h1{font-size:clamp(2.75rem,10vw,4.2rem)}.entry,.recipe-head,.columns,.editor-meta{grid-template-columns:1fr}.archive-head{align-items:stretch;flex-direction:column}.search{width:100%}.archive-list{gap:.55rem}.thumb{aspect-ratio:4/5}.card-copy{padding:.7rem .6rem .45rem}.entry-title{font-size:1.12rem}.entry-source{font-size:.72rem}.archive-item .remove{margin:0 .2rem .3rem}.recipe-head img{order:-1}.columns section:last-child{padding:0}}
+  @media(max-width:37rem){.mast-inner,main{width:calc(100% - 1.25rem)}.mast-inner{min-height:3.9rem}.brand{font-size:1.4rem}.brand-icon{width:1.85rem;height:1.85rem}.mast nav{gap:.3rem .55rem;flex-wrap:nowrap}.mast nav a{font-size:.77rem;white-space:nowrap}.mast nav a[href="#nuova-ricetta"]{display:none}.import-panel{grid-template-columns:1fr}.hero-media{min-height:0;flex-direction:row;padding:.8rem}.hero-logo{width:min(36%,8rem)}.feature{width:min(56%,19rem)}.feature span{font-size:.9rem}.hero-copy h1{font-size:clamp(2.75rem,10vw,4.2rem)}.entry,.recipe-head,.columns,.editor-meta{grid-template-columns:1fr}.archive-head{align-items:stretch;flex-direction:column}.search{width:100%}.archive-list{gap:.55rem}.thumb{aspect-ratio:4/5}.card-copy{padding:.7rem .6rem .45rem}.entry-title{font-size:1.12rem}.entry-source{font-size:.72rem}.archive-item .remove{margin:0 .2rem .3rem}.recipe-head img{order:-1}.columns section:last-child{padding:0}}
   @media(max-width:65rem) and (max-height:36rem) and (orientation:landscape){.thumb{aspect-ratio:4/3}}
   @page{size:A4 portrait;margin:13mm}
   @media print{.screen{display:none!important}body,article{background:white;color:#111;font-size:10pt}main,article{width:auto;margin:0;padding:0;border:0;border-radius:0;box-shadow:none}h2{font-size:25pt}h3{font-size:15pt;break-after:avoid}.recipe-head{grid-template-columns:minmax(0,1fr) auto;gap:5mm;break-inside:avoid}.recipe-head img{order:0;width:auto;max-width:42mm;max-height:31mm}.columns{grid-template-columns:1fr 1.6fr;gap:8mm;margin-top:4mm}.columns section:first-child,.columns section:last-child{padding:0;background:white}.columns li{break-inside:avoid}#meta,#sources{font-size:9pt}#notice{background:white}}
@@ -147,7 +149,7 @@
       <p id="intro" class="intro">Salva le ricette che vuoi provare. Incolla il link di un Reel, di un TikTok o di un blog di cucina.</p>
       <form id="form">
         <label for="url">Link della ricetta</label>
-        <div class="entry"><input id="url" type="url" placeholder="https://…" autocomplete="url" required><button id="import">Importa</button></div>
+        <div class="entry"><textarea id="url" rows="3" inputmode="url" enterkeyhint="go" autocomplete="url" spellcheck="false" maxlength="4096" placeholder="https://…" required></textarea><button id="import">Importa</button></div>
         <details class="caption-paste" id="caption-paste">
           <summary>Hai uno screenshot della descrizione?</summary>
           <label for="caption-screenshots">Carica fino a 4 screenshot</label>
@@ -160,20 +162,7 @@
       <p id="status" role="status"></p>
     </div>
     <div class="hero-media">
-      <svg class="hero-art" viewBox="0 0 600 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-        <defs><pattern id="cloth" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(-19)"><path d="M0 20h40M20 0v40" stroke="#af553d" stroke-width="4" opacity=".2"/></pattern></defs>
-        <path fill="#f1d6ab" d="M0 0h600v420H0z"/><path fill="url(#cloth)" d="M0 0h600v420H0z"/>
-        <ellipse cx="333" cy="232" rx="169" ry="162" fill="#ae795c" opacity=".22"/>
-        <circle cx="320" cy="208" r="160" fill="#fff9e7" stroke="#d5a875" stroke-width="2"/>
-        <circle cx="320" cy="208" r="140" fill="none" stroke="#ae4f38" stroke-width="2"/>
-        <circle cx="320" cy="208" r="130" fill="#f9efd8" stroke="#d5a875" stroke-width="1"/>
-        <g stroke="#456149" stroke-width="4" stroke-linecap="round"><path d="M281 229c46-37 94-49 139-46M328 234c20 11 44 23 74 17" fill="none"/></g>
-        <g fill="#56764d"><path d="M378 190c11-28 27-41 51-45-2 22-18 43-51 45Zm-25 9c-17-24-40-33-65-28 15 23 38 32 65 28Zm25 52c16 15 36 18 55 6-13-14-33-19-55-6Z"/></g>
-        <g stroke="#9a3b2b" stroke-width="2.5"><path d="M312 177c-24-10-53 0-68 19-20 25-11 60 17 76 28 17 67 10 81-16 15-28-2-70-30-79Z" fill="#c45137"/><path d="M338 205c9-20 33-32 56-23 24 9 35 36 23 61-12 25-37 36-59 24-21-11-28-41-20-62Z" fill="#d66848"/></g>
-        <g fill="none" stroke="#f3a085" stroke-width="3" stroke-linecap="round"><path d="M257 208c-10 11-12 25-6 37m110-37c6-10 13-15 25-17"/></g>
-        <g fill="#4e6b43"><path d="M298 178l-16-13 20 5 10-15 1 19 14 9-20-3-10 12Z"/><path d="M389 184l-7-14 12 9 16-9-7 14 8 10-15-5-13 8Z"/></g>
-        <g fill="#c59b68"><circle cx="236" cy="170" r="3"/><circle cx="221" cy="245" r="3"/><circle cx="366" cy="300" r="3"/><circle cx="416" cy="282" r="2"/><circle cx="347" cy="132" r="3"/></g>
-      </svg>
+      <img class="hero-logo" src="./logo-elia.webp" width="520" height="520" alt="Le ricette di Elia">
       <button type="button" id="feature" class="feature" hidden><img id="feature-image" alt=""><span id="feature-title"></span></button>
     </div>
   </section>
@@ -255,6 +244,7 @@
 <script>
   const byId = id => document.getElementById(id);
   const form = byId('form');
+  const urlField = byId('url');
   const status = byId('status');
   const article = byId('recipe');
   const button = byId('import');
@@ -882,13 +872,35 @@
   });
   byId('close').addEventListener('click', () => closeRecipe());
   byId('close-top').addEventListener('click', () => closeRecipe());
+  urlField.addEventListener('input', () => {
+    if (!urlField.hasAttribute('aria-invalid')) return;
+    urlField.removeAttribute('aria-invalid');
+    status.textContent = '';
+  });
+  urlField.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || event.isComposing) return;
+    event.preventDefault();
+    form.requestSubmit(button);
+  });
   form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (pagesPreview) return;
+    if (pagesPreview || button.disabled) return;
+    const url = urlField.value.trim();
+    let address;
+    try {
+      address = new URL(url);
+    } catch {
+      // Invalid input is handled with the same message as an unsupported URL.
+    }
+    if (/\s/.test(url) || address?.protocol !== 'https:' || !address.hostname || address.username || address.password) {
+      urlField.setAttribute('aria-invalid', 'true');
+      status.textContent = 'Incolla un solo link HTTPS valido.';
+      urlField.focus();
+      return;
+    }
     button.disabled = true;
     status.textContent = 'Sto cercando la ricetta…';
     closeRecipe(false);
-    const url = byId('url').value.trim();
     const caption = byId('caption-input').value.trim();
     const selected = [...byId('caption-screenshots').files];
     try {
