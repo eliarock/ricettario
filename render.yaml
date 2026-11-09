@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ricettario-elia
+    runtime: python
+    plan: free
+    buildCommand: python -m py_compile importer.py serve.py
+    startCommand: python serve.py
+    healthCheckPath: /health
+    envVars:
+      - key: RICETTARIO_PASSWORD
+        sync: false

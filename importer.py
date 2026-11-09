@@ -1,9 +1,12 @@
 """Prototipo CLI: python3 importer.py URL [--italiano]."""
 
 import argparse
+import http.client
+import ipaddress
 import json
 import os
 import re
+import socket
 from html import unescape
 from html.parser import HTMLParser
 from urllib.parse import urlencode, urljoin, urlsplit
@@ -45,7 +48,51 @@ class Page(HTMLParser):
             self.script = None
 
 
+def fetch_public(url):
+    # Bind the HTTPS socket to the exact IP checked here, including on redirects.
+    for _ in range(6):
+        parsed = urlsplit(url)
+        host = parsed.hostname
+        if parsed.scheme != "https" or not host or parsed.username or parsed.port not in {None, 443}:
+            raise ValueError("Sono ammessi solo indirizzi HTTPS pubblici.")
+        addresses = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+        ips = list(dict.fromkeys(entry[4][0] for entry in addresses))
+        checked = [ipaddress.ip_address(ip) for ip in ips]
+        if not checked or any(not ip.is_global or ip.is_multicast or ip.is_reserved for ip in checked):
+            raise ValueError("Indirizzo di rete non pubblico.")
+
+        connection = http.client.HTTPSConnection(host, timeout=10)
+
+        def connect_checked(_address, timeout, source_address):
+            return socket.create_connection((next((ip for ip in ips if ':' not in ip), ips[0]), 443), timeout, source_address)
+
+        connection._create_connection = connect_checked
+        path = parsed.path or "/"
+        if parsed.query:
+            path += "?" + parsed.query
+        try:
+            connection.request("GET", path, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "en"})
+            response = connection.getresponse()
+            if response.status in {301, 302, 303, 307, 308} and response.getheader("Location"):
+                url = urljoin(url, response.getheader("Location"))
+                continue
+            if response.status != 200:
+                raise ValueError(f"La fonte ha risposto con HTTP {response.status}.")
+            html = response.read(MAX_HTML + 1)
+            if len(html) > MAX_HTML:
+                raise ValueError("Pagina troppo grande.")
+            charset = response.headers.get_content_charset() or "utf-8"
+            return url, Page(html.decode(charset, errors="replace"))
+        except (http.client.HTTPException, LookupError) as error:
+            raise ValueError("Risposta della fonte non leggibile.") from error
+        finally:
+            connection.close()
+    raise ValueError("Troppi reindirizzamenti.")
+
+
 def fetch(url):
+    if os.environ.get("RENDER") == "true":
+        return fetch_public(url)
     # Importazione locale: usare soltanto URL di fonti fidate.
     if urlsplit(url).scheme != "https":
         raise ValueError("Serve un URL HTTPS.")

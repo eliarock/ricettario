@@ -10,9 +10,11 @@ from urllib.parse import urlsplit
 
 from importer import import_recipe, translate
 
-HOST = "127.0.0.1"
-PORT = 8765
-ORIGIN = f"http://{HOST}:{PORT}"
+RENDER = os.environ.get("RENDER") == "true"
+HOST = "0.0.0.0" if RENDER else "127.0.0.1"
+PORT = int(os.environ.get("PORT", "8765")) if RENDER else 8765
+ORIGIN = os.environ.get("RENDER_EXTERNAL_URL", "").rstrip("/") if RENDER else f"http://{HOST}:{PORT}"
+EXPECTED_HOST = urlsplit(ORIGIN).netloc
 INDEX = Path(__file__).with_name("index.html")
 
 
@@ -56,7 +58,7 @@ def preview(record):
 
 class Handler(BaseHTTPRequestHandler):
     def authorized(self):
-        if self.headers.get("Host") != f"{HOST}:{PORT}":
+        if self.headers.get("Host") != EXPECTED_HOST:
             self.send_error(403)
             return False
         supplied = self.headers.get("Authorization", "").encode()
@@ -77,6 +79,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def do_GET(self):
+        if RENDER and self.path == "/health":
+            self.reply(200, b'{"status":"ok"}')
+            return
         if not self.authorized():
             return
         if self.path != "/":
@@ -116,6 +121,8 @@ if __name__ == "__main__":
     password = os.environ.get("RICETTARIO_PASSWORD")
     if not password:
         raise SystemExit("Imposta RICETTARIO_PASSWORD e avvia nuovamente il server.")
+    if RENDER and (urlsplit(ORIGIN).scheme != "https" or not EXPECTED_HOST or len(password) < 16):
+        raise SystemExit("Su Render serve un URL HTTPS e una password di almeno 16 caratteri.")
     with ThreadingHTTPServer((HOST, PORT), Handler) as server:
         server.authorization = b"Basic " + base64.b64encode(f"elia:{password}".encode())
         print(f"Ricettario disponibile su {ORIGIN} (utente elia)", flush=True)
