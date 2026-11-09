@@ -361,13 +361,14 @@ def italian_caption(caption):
 
 
 def social_caption(final, page, host):
-    """Return the public caption and author from a social video page."""
+    """Return the public caption, author and thumbnail from a social video page."""
     og_title = page.meta.get("og:title", "")
+    cover = page.meta.get("og:image")
     if host in FACEBOOK:
         _, separator, caption_author = og_title.partition(" | ")
         caption, author_separator, author = caption_author.rpartition(" | ")
         if separator and author_separator:
-            return caption, author
+            return caption, author, cover
 
     if host in INSTAGRAM:
         canonical = page.meta.get("og:url") or final
@@ -376,10 +377,10 @@ def social_caption(final, page, host):
         if reel:
             author, separator, caption = og_title.partition(" on Instagram:")
             if separator and caption.strip():
-                return caption.strip().removeprefix('"').removesuffix('"'), author
+                return caption.strip().removeprefix('"').removesuffix('"'), author, cover
             description = page.meta.get("og:description")
             if description and reel.group(1):
-                return description, reel.group(1)
+                return description, reel.group(1), cover
 
     if host in TIKTOK:
         video = re.fullmatch(r"/@([\w.-]+)/video/(\d+)/?", urlsplit(final).path)
@@ -389,11 +390,13 @@ def social_caption(final, page, host):
             item = detail.get("itemInfo", {}).get("itemStruct", {})
             if item.get("id") == video.group(2) and item.get("desc"):
                 author = item.get("author") or {}
-                return item["desc"], author.get("nickname") or video.group(1)
+                video_data = item.get("video") or {}
+                cover = video_data.get("cover") or video_data.get("originCover") or cover
+                return item["desc"], author.get("nickname") or video.group(1), cover
             description = page.meta.get("og:description")
             match = re.search(r"TikTok video from (.+?) \(@[\w.-]+\):\s*(.+)", description or "", re.DOTALL)
             if match:
-                return match.group(2), match.group(1)
+                return match.group(2), match.group(1), cover
 
     raise RecipeNotFound("Il social non ha restituito la descrizione del video. Se disponibile, incolla il link diretto al blog.")
 
@@ -410,13 +413,13 @@ def import_recipe(url):
     if urlsplit(final).hostname not in SOCIAL_HOSTS:
         raise RecipeNotFound("Il link social non porta a un video leggibile.")
     reel = final.split("?", 1)[0]
-    caption, author = social_caption(final, page, host)
+    caption, author, cover = social_caption(final, page, host)
     caption = caption.strip()
     if not caption:
         raise RecipeNotFound("La descrizione del video è vuota. Se disponibile, incolla il link diretto al blog.")
     italian_recipe = italian_caption(caption)
     title = italian_recipe["titolo"] if italian_recipe else caption.splitlines()[0].strip()
-    record = {"reel": reel, "author": author, "title": title}
+    record = {"reel": reel, "author": author, "title": title, "image": cover}
     for link in re.findall(r'https://[^\s<>"\']+', caption):
         link = unescape(link).rstrip(".,);")
         if urlsplit(link).hostname in SOCIAL_HOSTS:

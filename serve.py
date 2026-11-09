@@ -66,7 +66,7 @@ def preview(record):
         "author": record.get("author"),
         "reel": record.get("reel"),
         "blog": record.get("blog"),
-        "image": photo(raw.get("image")),
+        "image": photo(raw.get("image")) or photo(record.get("image")),
         "needs_confirmation": record["needs_confirmation"],
     }
     language = record.get("language")

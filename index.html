@@ -103,6 +103,13 @@
   @media(prefers-reduced-motion:reduce){.thumb img{transition:none}}
   @page{size:A4 portrait;margin:13mm}
   @media print{.screen{display:none!important}body,article{background:white;color:#111;font-size:10pt}main,article{width:auto;margin:0;padding:0;border:0;border-radius:0;box-shadow:none}h2{font-size:25pt}h3{font-size:15pt;break-after:avoid}.recipe-head{grid-template-columns:minmax(0,1fr) auto;gap:5mm;break-inside:avoid}.recipe-head img{order:0;width:42mm;max-height:31mm}.columns{grid-template-columns:1fr 1.6fr;gap:8mm;margin-top:4mm}.columns section:first-child,.columns section:last-child{padding:0;background:white}.columns li{break-inside:avoid}#meta,#sources{font-size:9pt}#notice{background:white}}
+  .photo-editor{min-width:0;margin:0;padding:.9rem;border:1px solid var(--rule);border-radius:.55rem}
+  .photo-editor legend{padding:0 .35rem;font-weight:750}
+  .photo-preview{display:block;width:min(100%,15rem);height:auto;aspect-ratio:16/10;object-fit:cover;border-radius:.4rem;margin-bottom:.8rem}
+  .photo-inputs{display:grid;gap:.65rem}
+  .photo-editor .recipe-actions{margin-top:.55rem}
+  .photo-editor input[type=file]{padding:.5rem;font-size:.9rem}
+  .photo-editor #photo-message{margin:.4rem 0 0;font-size:.85rem}
 </style>
 </head>
 <body>
@@ -182,6 +189,19 @@
       <p>Scrivi un ingrediente o un passaggio per riga.</p>
       <div class="editor-fields">
         <div><label for="edit-title">Titolo</label><input id="edit-title" required maxlength="250"></div>
+        <fieldset class="photo-editor">
+          <legend>Foto della ricetta</legend>
+          <img id="edit-photo-preview" class="photo-preview" alt="Anteprima foto" hidden>
+          <div class="photo-inputs">
+            <div><label for="edit-photo-file">Carica dal dispositivo</label><input id="edit-photo-file" type="file" accept="image/*"></div>
+            <div><label for="edit-photo-url">Oppure incolla il link diretto alla foto</label><input id="edit-photo-url" type="url" placeholder="https://…" maxlength="5000"></div>
+          </div>
+          <div class="recipe-actions">
+            <button class="quiet" id="edit-photo-remove" type="button" hidden>Rimuovi foto</button>
+            <a id="edit-photo-search" target="_blank" rel="noopener noreferrer">Cerca una foto simile</a>
+          </div>
+          <p id="photo-message" role="status" hidden></p>
+        </fieldset>
         <div class="editor-meta">
           <div><label for="edit-portions">Porzioni</label><input id="edit-portions" maxlength="80" placeholder="Es. 4"></div>
           <div><label for="edit-times">Tempi</label><input id="edit-times" maxlength="300" placeholder="Es. Preparazione 15 min, cottura 25 min"></div>
@@ -232,6 +252,8 @@
   const featuredImage = byId('feature-image');
   let featuredEntry;
   const https = value => typeof value === 'string' && value.startsWith('https://');
+  const photoSource = value => https(value) || (typeof value === 'string' && value.length <= 450000 &&
+    /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(value));
 
   function readArchive() {
     const data = JSON.parse(localStorage.getItem(storageKey) || '[]');
@@ -269,7 +291,7 @@
   });
 
   function showFeatured(entries) {
-    const next = entries.find(entry => https(entry.recipe.image));
+    const next = entries.find(entry => photoSource(entry.recipe.image));
     const samePhoto = next && featuredEntry?.recipe.image === next.recipe.image;
     featuredEntry = next;
     if (!next) {
@@ -339,7 +361,7 @@
       thumb.className = 'thumb';
       thumb.setAttribute('aria-hidden', 'true');
       thumb.textContent = title.slice(0, 1).toLocaleUpperCase('it');
-      if (https(recipe.image)) {
+      if (photoSource(recipe.image)) {
         const image = document.createElement('img');
         image.alt = '';
         image.loading = 'lazy';
@@ -407,7 +429,7 @@
     const photo = byId('photo');
     photo.hidden = !recipe.image;
     photo.removeAttribute('src');
-    if (https(recipe.image)) photo.src = recipe.image;
+    if (photoSource(recipe.image)) photo.src = recipe.image;
     else photo.hidden = true;
     const notes = [
       recipe.needs_confirmation && 'Ricetta trovata sul blog dell’autore. Verifica che corrisponda al video.',
@@ -520,6 +542,106 @@
   const linesForEdit = values => Array.isArray(values) ? values.join('\n') : '';
   const editedLines = id => byId(id).value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
 
+  const photoFile = byId('edit-photo-file');
+  const photoUrl = byId('edit-photo-url');
+  const photoPreview = byId('edit-photo-preview');
+  const photoRemove = byId('edit-photo-remove');
+  const photoMessage = byId('photo-message');
+  let uploadedPhoto = null;
+
+  function photoFeedback(message) {
+    photoMessage.textContent = message;
+    photoMessage.hidden = !message;
+  }
+
+  function refreshPhotoEditor() {
+    const url = uploadedPhoto || photoUrl.value.trim();
+    photoPreview.hidden = !photoSource(url);
+    photoRemove.hidden = !url;
+    if (photoPreview.hidden) photoPreview.removeAttribute('src');
+    else if (photoPreview.getAttribute('src') !== url) photoPreview.src = url;
+  }
+
+  function setPhotoSearch() {
+    const title = byId('edit-title').value.trim() || 'ricetta';
+    byId('edit-photo-search').href = 'https://www.google.com/search?tbm=isch&q=' +
+      encodeURIComponent(title + ' ricetta');
+  }
+
+  function resizePhoto(file) {
+    return new Promise((resolve, reject) => {
+      if (file.size > 12 * 1024 * 1024) {
+        reject(new Error('Scegli una foto sotto i 12 MB.'));
+        return;
+      }
+      const image = new Image();
+      const url = URL.createObjectURL(file);
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        try {
+          const ratio = Math.min(1, 960 / Math.max(image.naturalWidth, image.naturalHeight));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
+          const context = canvas.getContext('2d');
+          context.fillStyle = '#ffffff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          const highQuality = canvas.toDataURL('image/jpeg', .82);
+          const jpeg = highQuality.length <= 450000 ? highQuality : canvas.toDataURL('image/jpeg', .62);
+          if (!photoSource(jpeg)) throw new Error('La foto è troppo grande. Scegline una più piccola.');
+          resolve(jpeg);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Non riesco a leggere questa foto. Prova con un JPG o PNG.'));
+      };
+      image.src = url;
+    });
+  }
+
+  byId('edit-title').addEventListener('input', setPhotoSearch);
+  photoPreview.addEventListener('error', () => {
+    photoPreview.hidden = true;
+    photoFeedback('Anteprima non disponibile. Controlla il link o carica una foto.');
+  });
+  photoUrl.addEventListener('input', () => {
+    uploadedPhoto = null;
+    photoFile.value = '';
+    photoFeedback('');
+    refreshPhotoEditor();
+  });
+  photoRemove.addEventListener('click', () => {
+    uploadedPhoto = null;
+    photoFile.value = '';
+    photoUrl.value = '';
+    photoFeedback('');
+    refreshPhotoEditor();
+    photoUrl.focus();
+  });
+  photoFile.addEventListener('change', async () => {
+    const file = photoFile.files[0];
+    if (!file || editorSave.disabled) return;
+    editorSave.disabled = editorCancel.disabled = true;
+    photoFile.disabled = photoUrl.disabled = photoRemove.disabled = true;
+    photoFeedback('Sto preparando la foto…');
+    try {
+      uploadedPhoto = await resizePhoto(file);
+      photoUrl.value = '';
+      refreshPhotoEditor();
+      photoFeedback('');
+    } catch (error) {
+      photoFile.value = '';
+      photoFeedback(error.message);
+    } finally {
+      editorSave.disabled = editorCancel.disabled = false;
+      photoFile.disabled = photoUrl.disabled = photoRemove.disabled = false;
+    }
+  });
+
   byId('edit').addEventListener('click', () => {
     if (!current || archiveBusy || editor.open) return;
     const {recipe} = current;
@@ -530,6 +652,12 @@
     byId('edit-steps').value = linesForEdit(recipe.passaggi);
     byId('edit-caption').value = recipe.descrizione || '';
     byId('edit-caption-wrap').hidden = !recipe.descrizione;
+    uploadedPhoto = photoSource(recipe.image) && !https(recipe.image) ? recipe.image : null;
+    photoUrl.value = https(recipe.image) ? recipe.image : '';
+    photoFile.value = '';
+    photoFeedback('');
+    refreshPhotoEditor();
+    setPhotoSearch();
     editorSave.textContent = currentSaved ? 'Salva modifiche' : 'Applica modifiche';
     editorError.textContent = '';
     editor.showModal();
@@ -554,6 +682,12 @@
     const saved = currentSaved;
     const trigger = returnFocus;
     const times = byId('edit-times').value.trim();
+    const image = uploadedPhoto || photoUrl.value.trim();
+    if (image && !photoSource(image)) {
+      photoFeedback('Incolla un link diretto che inizi con https://.');
+      photoUrl.focus();
+      return;
+    }
     const recipe = {
       ...entry.recipe,
       titolo: title,
@@ -562,6 +696,7 @@
       ingredienti: editedLines('edit-ingredients'),
       passaggi: editedLines('edit-steps'),
       descrizione: byId('edit-caption').value.trim() || null,
+      image: image || null,
     };
     editorError.textContent = '';
     editorSave.disabled = true;
