@@ -22,7 +22,8 @@
   input,button { font:inherit; border-radius:.28rem; padding:.78rem 1rem; }
   input { min-width:0; flex:1; border:1px solid #a99a83; background:#fffefa; color:var(--ink); }
   button { background:var(--accent); color:#fff; border:1px solid transparent; font-weight:650; cursor:pointer; }
-  button:hover { background:#6a3424; }
+  button:hover, .access:hover { background:#6a3424; }
+  .access { display:inline-block; background:var(--accent); color:white; border-radius:.28rem; padding:.78rem 1rem; text-decoration:none; font-weight:650; }
   button:disabled { opacity:.65; cursor:not-allowed; }
   :focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
   #status { min-height:1.6rem; color:var(--muted); }
@@ -58,11 +59,12 @@
   <header class="mast screen"><strong>Ricettario</strong><span>Archivio personale</span></header>
   <section class="screen">
     <h1>Dal link alla tavola.</h1>
-    <p class="intro">Incolla il link di un Reel o di un blog di cucina.</p>
+    <p id="intro" class="intro">Incolla il link di un Reel o di un blog di cucina.</p>
     <form id="form">
       <label for="url">Link della ricetta</label>
       <div class="entry"><input id="url" type="url" placeholder="https://…" autocomplete="url" required><button id="import">Importa ricetta</button></div>
     </form>
+    <a id="access" class="access" href="https://ricettario-elia.onrender.com/" hidden>Accedi al ricettario</a>
     <p id="status" role="status"></p>
   </section>
   <article id="recipe" hidden aria-labelledby="title">
@@ -127,8 +129,9 @@
   }
   const pagesPreview = window.location.hostname.endsWith('.github.io');
   if (pagesPreview) {
-    button.disabled = true;
-    status.textContent = 'Anteprima del ricettario. L’importazione sarà disponibile quando il server sarà collegato.';
+    form.hidden = true;
+    byId('access').hidden = false;
+    byId('intro').textContent = 'Accedi per importare una ricetta da un Reel o da un blog di cucina.';
   }
   form.addEventListener('submit', async event => {
     event.preventDefault();
