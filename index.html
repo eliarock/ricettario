@@ -572,6 +572,7 @@
     const portions = recipe.porzioni ? String(recipe.porzioni) : '';
     byId('meta').textContent = [
       recipe.author, portions && (/porzion|person/i.test(portions) ? portions : portions + ' porzioni'),
+      ...categoriesOf(recipe).map(category => categoryLabels.get(category)),
       formatTimes(recipe.tempi),
     ].filter(Boolean).join('  /  ');
     const photo = byId('photo');

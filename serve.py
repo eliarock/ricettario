@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import archive_db
-from importer import CaptionExtractionFailed, RecipeNotFound, TranslationQuotaExceeded, import_recipe, italian_caption, translate
+from importer import CaptionExtractionFailed, RecipeNotFound, TranslationQuotaExceeded, import_recipe, italian_caption, suggested_categories, translate
 
 RENDER = os.environ.get("RENDER") == "true"
 HOST = "0.0.0.0" if RENDER else "127.0.0.1"
@@ -242,6 +242,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             recipe = preview(record)
+            recipe["categorie"] = suggested_categories(record, recipe)
         except TranslationQuotaExceeded as error:
             self.reply(429, json.dumps({"error": str(error)}).encode())
             return
