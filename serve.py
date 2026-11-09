@@ -4,12 +4,13 @@ import base64
 import hmac
 import json
 import os
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import archive_db
-from importer import RecipeNotFound, TranslationQuotaExceeded, import_recipe, italian_caption, translate
+from importer import CaptionExtractionFailed, RecipeNotFound, TranslationQuotaExceeded, import_recipe, italian_caption, translate
 
 RENDER = os.environ.get("RENDER") == "true"
 HOST = "0.0.0.0" if RENDER else "127.0.0.1"
@@ -69,6 +70,8 @@ def preview(record):
         "image": photo(raw.get("image")) or photo(record.get("image")),
         "needs_confirmation": record["needs_confirmation"],
     }
+    if record.get("scheda"):
+        return {**common, **record["scheda"], "translated": True}
     language = record.get("language")
     if isinstance(language, str) and language.lower().replace("_", "-").split("-", 1)[0] == "it":
         return {
@@ -204,9 +207,19 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= 4096:
+            if not 0 < length <= 2 * 1024 * 1024:
                 raise ValueError
-            url = json.loads(self.rfile.read(length))["url"]
+            payload = json.loads(self.rfile.read(length))
+            url = payload["url"]
+            caption = payload.get("caption", "")
+            screenshots = payload.get("screenshots", [])
+            if not isinstance(screenshots, list) or len(screenshots) > 4 or any(
+                not isinstance(data, str) or len(data) > 450000 or not re.fullmatch(r"[A-Za-z0-9+/]+=*", data)
+                for data in screenshots
+            ):
+                raise ValueError
+            if not isinstance(caption, str) or len(caption) > 12000 or len(url) > 4096:
+                raise ValueError
             parsed = urlsplit(url)
             if parsed.scheme != "https" or not parsed.hostname or parsed.username:
                 raise ValueError
@@ -214,7 +227,13 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(400, b'{"error":"Inserisci un link HTTPS valido."}')
             return
         try:
-            record = import_recipe(url)
+            record = import_recipe(url, caption_override=caption.strip() or None, screenshots=screenshots)
+        except TranslationQuotaExceeded as error:
+            self.reply(429, json.dumps({"error": str(error)}).encode())
+            return
+        except CaptionExtractionFailed as error:
+            self.reply(502, json.dumps({"error": str(error)}).encode())
+            return
         except RecipeNotFound as error:
             self.reply(422, json.dumps({"error": str(error)}).encode())
             return

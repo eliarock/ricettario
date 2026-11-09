@@ -399,39 +399,11 @@ def social_caption(final, page, host):
             if match:
                 return match.group(2), match.group(1), cover
 
-    raise RecipeNotFound("Il social non ha restituito la descrizione del video. Se disponibile, incolla il link diretto al blog.")
+    raise RecipeNotFound("Il social non ha restituito la descrizione del video. Carica uno screenshot della descrizione oppure usa il link al blog.")
 
 
-def import_recipe(url):
-    host = urlsplit(url).hostname
-    if host not in SOCIAL_HOSTS:
-        result = read_blog(url)
-        if not result:
-            raise ValueError("Nessuna ricetta strutturata nella pagina.")
-        return {"source": "blog", "needs_confirmation": False, **result}
-
-    final, page = fetch(url)
-    if urlsplit(final).hostname not in SOCIAL_HOSTS:
-        raise RecipeNotFound("Il link social non porta a un video leggibile.")
-    reel = final.split("?", 1)[0]
-    caption, author, cover = social_caption(final, page, host)
-    caption = caption.strip()
-    if not caption:
-        raise RecipeNotFound("La descrizione del video è vuota. Se disponibile, incolla il link diretto al blog.")
-    italian_recipe = italian_caption(caption)
-    title = italian_recipe["titolo"] if italian_recipe else caption.splitlines()[0].strip()
-    record = {"reel": reel, "author": author, "title": title, "image": cover}
-    for link in re.findall(r'https://[^\s<>"\']+', caption):
-        link = unescape(link).rstrip(".,);")
-        if urlsplit(link).hostname in SOCIAL_HOSTS:
-            continue
-        try:
-            result = read_blog(link)
-        except (OSError, ValueError):
-            continue
-        if result:
-            return {**record, "source": "caption_link", "needs_confirmation": False, **result}
-
+def looks_like_recipe(caption):
+    """Keep offline import working for recognizable caption layouts."""
     caption_for_detection = normalize("NFKC", caption)
     numbered_recipe = (
         re.search(r"(?im)^\s*1[.)]\s+", caption_for_detection)
@@ -450,8 +422,71 @@ def import_recipe(url):
         r"chop|mix|bake|roast|cook|preheat|whisk|blend|boil|fry)\s+\S",
         caption_for_detection,
     )
-    if italian_recipe or numbered_recipe or short_method or inline_recipe:
-        return {**record, "source": "caption", "needs_confirmation": False, "caption": caption}
+    return bool(numbered_recipe or short_method or inline_recipe)
+
+
+def import_recipe(url, *, caption_override=None, screenshots=()):
+    host = urlsplit(url).hostname
+    if host not in SOCIAL_HOSTS:
+        if caption_override or screenshots:
+            raise RecipeNotFound("Per usare testo o screenshot, inserisci un link Facebook, Instagram o TikTok.")
+        result = read_blog(url)
+        if not result:
+            raise ValueError("Nessuna ricetta strutturata nella pagina.")
+        return {"source": "blog", "needs_confirmation": False, **result}
+
+    if caption_override or screenshots:
+        reel = url.split("?", 1)[0]
+        caption, author, cover = caption_override or "", "", None
+    else:
+        try:
+            final, page = fetch(url)
+        except (OSError, ValueError) as error:
+            raise RecipeNotFound(
+                "Non riesco a leggere il video dal social. Carica uno screenshot della descrizione oppure usa il link al blog."
+            ) from error
+        if urlsplit(final).hostname not in SOCIAL_HOSTS:
+            raise RecipeNotFound("Il link social non porta a un video leggibile.")
+        reel = final.split("?", 1)[0]
+        caption, author, cover = social_caption(final, page, host)
+    caption = caption.strip()
+    if not caption and not screenshots:
+        raise RecipeNotFound("La descrizione del video non è accessibile. Carica uno screenshot oppure usa il link al blog.")
+    italian_recipe = italian_caption(caption)
+    title = italian_recipe["titolo"] if italian_recipe else caption.partition("\n")[0].strip()
+    record = {"reel": reel, "author": author, "title": title, "image": cover}
+    for link in re.findall(r'https://[^\s<>"\']+', caption):
+        link = unescape(link).rstrip(".,);")
+        if urlsplit(link).hostname in SOCIAL_HOSTS:
+            continue
+        try:
+            result = read_blog(link)
+        except (OSError, ValueError):
+            continue
+        if result:
+            return {**record, "source": "caption_link", "needs_confirmation": False, **result}
+
+    caption_record = {**record, "source": "caption", "needs_confirmation": False, "caption": caption}
+    if italian_recipe and not screenshots:
+        return caption_record
+    if os.environ.get("GEMINI_API_KEY"):
+        try:
+            extracted = translate(caption_record, allow_missing=True, screenshots=screenshots)
+        except TranslationQuotaExceeded:
+            raise
+        except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
+            raise CaptionExtractionFailed(
+                "Descrizione trovata, ma non sono riuscito a elaborarla. Riprova tra poco."
+            ) from error
+        if extracted["scheda"]:
+            return {**caption_record, "scheda": extracted["scheda"]}
+        title = extracted.get("title") or title
+    elif screenshots:
+        raise CaptionExtractionFailed("Per leggere gli screenshot configura GEMINI_API_KEY su Render.")
+    elif looks_like_recipe(caption):
+        return caption_record
+    if caption_override or screenshots:
+        raise RecipeNotFound("Non trovo ingredienti e istruzioni sufficienti. Controlla che siano visibili negli screenshot o presenti nel testo.")
     try:
         result = search_author_blog(author, title)
     except (OSError, ValueError):
@@ -469,7 +504,11 @@ class TranslationQuotaExceeded(ValueError):
     pass
 
 
-def translate(record):
+class CaptionExtractionFailed(ValueError):
+    pass
+
+
+def translate(record, *, allow_missing=False, screenshots=()):
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise ValueError("Configura GEMINI_API_KEY per la traduzione.")
@@ -487,9 +526,27 @@ def translate(record):
         "Se la fonte è già in italiano, mantienila in italiano. "
         "Usa i gradi Celsius e traduci i nomi comuni degli ingredienti."
     )
+    if allow_missing:
+        instructions += (
+            " Riconosci le ricette anche senza intestazioni, con emoji o testo tutto in un paragrafo."
+            " Se la descrizione contiene ingredienti utilizzabili e almeno una vera indicazione"
+            " di preparazione o cottura, restituisci la scheda anche se parziale."
+            " Se mancano ingredienti utilizzabili o indicazioni di preparazione, o rimanda solo"
+            ' a bio o commenti, restituisci {"ricetta_presente":false,"titolo":null}.'
+            " Nel caso negativo indica comunque in titolo il nome del piatto se riconoscibile,"
+            " senza dedurlo da hashtag generici. Non inventare passaggi, tempi o quantità."
+        )
+    parts = [{"text": json.dumps(source, ensure_ascii=False)}]
+    if screenshots:
+        instructions += (
+            " Leggi la descrizione negli screenshot allegati in ordine."
+            " Se le schermate si sovrappongono, evita di duplicare il testo."
+            " Ignora commenti, pulsanti e qualsiasi testo estraneo alla ricetta."
+        )
+        parts.extend({"inlineData": {"mimeType": "image/jpeg", "data": data}} for data in screenshots)
     body = {
         "systemInstruction": {"parts": [{"text": instructions}]},
-        "contents": [{"role": "user", "parts": [{"text": json.dumps(source, ensure_ascii=False)}]}],
+        "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {"responseMimeType": "application/json"},
     }
     request = Request(
@@ -512,6 +569,8 @@ def translate(record):
     if not isinstance(translated, dict):
         raise ValueError("Formato della traduzione non valido.")
     title = translated.get("titolo")
+    if allow_missing and translated.get("ricetta_presente") is False:
+        return {"scheda": None, "title": title.strip() if isinstance(title, str) else None}
     if not isinstance(title, str) or not title.strip():
         raise ValueError("La traduzione non contiene un titolo.")
     for field in ("ingredienti", "passaggi"):
@@ -537,7 +596,7 @@ def main():
     args = parser.parse_args()
     try:
         record = import_recipe(args.url)
-        if args.italiano:
+        if args.italiano and not record.get('scheda'):
             record = translate(record)
     except (OSError, ValueError) as error:
         parser.exit(1, f"Importazione fallita: {error}\n")

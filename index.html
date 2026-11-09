@@ -120,6 +120,12 @@
   .category-option{display:flex;align-items:center;gap:.45rem;margin:0;min-height:38px}
   .category-option input{width:1rem;height:1rem;flex:none;accent-color:var(--accent)}
   @media(max-width:30rem){.archive-controls{grid-template-columns:1fr;gap:.5rem}}
+  .recipe-top{display:flex;justify-content:flex-end;margin:-.5rem -.5rem .35rem}
+  .recipe-close-top{display:grid;place-items:center;width:44px;padding:0;font-size:1.5rem;line-height:1;border-color:var(--rule)}
+  .caption-paste{margin-top:.65rem;color:#5e4634}
+  .caption-paste summary{cursor:pointer;font-size:.88rem;font-weight:700;width:fit-content}
+  .caption-paste label{margin-top:.55rem}
+  .caption-paste textarea{display:block;resize:vertical}
 </style>
 </head>
 <body>
@@ -140,6 +146,13 @@
       <form id="form">
         <label for="url">Link della ricetta</label>
         <div class="entry"><input id="url" type="url" placeholder="https://…" autocomplete="url" required><button id="import">Importa</button></div>
+        <details class="caption-paste" id="caption-paste">
+          <summary>Hai uno screenshot della descrizione?</summary>
+          <label for="caption-screenshots">Carica fino a 4 screenshot</label>
+          <input id="caption-screenshots" type="file" accept="image/*" multiple>
+          <label for="caption-input">Descrizione del video</label>
+          <textarea id="caption-input" rows="4" maxlength="12000" placeholder="Se hai già il testo, puoi incollarlo qui."></textarea>
+        </details>
       </form>
       <a id="access" class="access" href="https://ricettario-elia.onrender.com/" hidden>Accedi al ricettario</a>
       <p id="status" role="status"></p>
@@ -163,6 +176,7 @@
     </div>
   </section>
   <article id="recipe" hidden aria-labelledby="title">
+    <div class="screen recipe-top"><button class="quiet recipe-close-top" type="button" id="close-top" aria-label="Chiudi scheda ricetta">×</button></div>
     <header class="recipe-head">
       <div><h2 id="title" tabindex="-1"></h2><p id="meta"></p></div>
       <img id="photo" alt="" hidden>
@@ -703,7 +717,7 @@
       encodeURIComponent(title + ' ricetta');
   }
 
-  function resizePhoto(file) {
+  function resizePhoto(file, maxSide = 960) {
     return new Promise((resolve, reject) => {
       if (file.size > 12 * 1024 * 1024) {
         reject(new Error('Scegli una foto sotto i 12 MB.'));
@@ -714,7 +728,7 @@
       image.onload = () => {
         URL.revokeObjectURL(url);
         try {
-          const ratio = Math.min(1, 960 / Math.max(image.naturalWidth, image.naturalHeight));
+          const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
           const canvas = document.createElement('canvas');
           canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
           canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
@@ -853,6 +867,7 @@
     }
   });
   byId('close').addEventListener('click', () => closeRecipe());
+  byId('close-top').addEventListener('click', () => closeRecipe());
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (pagesPreview) return;
@@ -860,19 +875,33 @@
     status.textContent = 'Sto cercando la ricetta…';
     closeRecipe(false);
     const url = byId('url').value.trim();
+    const caption = byId('caption-input').value.trim();
+    const selected = [...byId('caption-screenshots').files];
     try {
+      if (selected.length > 4) throw new Error('Carica al massimo 4 screenshot.');
+      const screenshots = [];
+      for (const file of selected) {
+        const dataUrl = await resizePhoto(file, 1600);
+        screenshots.push(dataUrl.split(',')[1]);
+      }
       const response = await fetch('/api/import', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({url}),
+        body: JSON.stringify({url, caption, screenshots}),
       });
       if (!response.headers.get('Content-Type')?.includes('application/json')) {
         throw new Error('Il servizio di importazione non risponde. Riprova più tardi.');
       }
       const recipe = await response.json();
-      if (!response.ok) throw new Error(recipe.error);
+      if (!response.ok) {
+        if (recipe.error?.includes('screenshot')) byId('caption-paste').open = true;
+        throw new Error(recipe.error);
+      }
       render(recipe, recipe.reel || recipe.blog || url, byId('url'));
       status.textContent = 'Ricetta importata.';
+      byId('caption-input').value = '';
+      byId('caption-screenshots').value = '';
+      byId('caption-paste').open = false;
     } catch (error) {
       status.textContent = error instanceof SyntaxError || error instanceof TypeError
         ? 'Il servizio di importazione non è disponibile. Riprova tra poco.'
