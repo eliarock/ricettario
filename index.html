@@ -760,13 +760,14 @@
     refreshPhotoEditor();
     photoUrl.focus();
   });
-  async function prepareEditorPhoto(photo, pasted = false) {
+  async function prepareEditorPhoto(preparePhoto, pasted = false) {
     editorSave.disabled = editorCancel.disabled = true;
     photoFile.disabled = photoUrl.disabled = photoRemove.disabled = photoPaste.disabled = true;
     photoFeedback(pasted ? 'Sto incollando la foto…' : 'Sto preparando la foto…');
     try {
-      uploadedPhoto = await resizePhoto(await photo);
-      photoUrl.value = '';
+      const image = await preparePhoto();
+      uploadedPhoto = https(image) ? null : image;
+      photoUrl.value = https(image) ? image : '';
       if (pasted) photoFile.value = '';
       refreshPhotoEditor();
       photoFeedback(pasted ? 'Foto incollata. Controlla l’anteprima.' : '');
@@ -779,16 +780,95 @@
     }
   }
 
-  async function readClipboardPhoto() {
-    try {
-      for (const item of await navigator.clipboard.read()) {
-        const type = item.types.find(type => type.startsWith('image/'));
-        if (type) return await item.getType(type);
-      }
-    } catch {
-      throw new Error('Consenti di incollare la foto oppure caricala dal dispositivo.');
+  const clipboardTextTypes = ['text/html', 'text/uri-list', 'text/plain'];
+
+  function clipboardPhotoAddress(type, text) {
+    if (text.length > 17 * 1024 * 1024) return null;
+    if (type === 'text/html') {
+      // Template contents are inert. Only the image address is extracted.
+      const template = document.createElement('template');
+      template.innerHTML = text;
+      text = template.content.querySelector('img[src]')?.getAttribute('src') || '';
+    } else if (type === 'text/uri-list') {
+      text = text.split(/\r?\n/).find(line => line.trim() && !line.trimStart().startsWith('#')) || '';
     }
-    throw new Error('Negli appunti non c’è una foto. Usa «Copia immagine» e riprova.');
+    const address = text.trim();
+    if (/^data:image\/(?:png|jpeg|webp|gif|avif|bmp);base64,/i.test(address)) return address.replace(/^data:/i, 'data:');
+    if (address.length > 5000) return null;
+    try {
+      const url = new URL(address);
+      return url.protocol === 'https:' && !url.username && !url.password ? url.href : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function validateClipboardPhoto(address) {
+    if (address.startsWith('data:')) {
+      const response = await fetch(address);
+      return resizePhoto(await response.blob());
+    }
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.referrerPolicy = 'no-referrer';
+      const fail = () => {
+        clearTimeout(timer);
+        reject(new Error('Il link copiato non apre una foto. Usa «Copia immagine» o caricala dal dispositivo.'));
+      };
+      const timer = setTimeout(() => {
+        image.removeAttribute('src');
+        fail();
+      }, 8000);
+      image.onload = () => {
+        clearTimeout(timer);
+        resolve(address);
+      };
+      image.onerror = fail;
+      image.src = address;
+    });
+  }
+
+  async function firstClipboardPhoto(candidates) {
+    let error;
+    const tried = new Set();
+    for (const read of candidates) {
+      try {
+        const value = await read();
+        if (value instanceof Blob) return await resizePhoto(value);
+        if (value && !tried.has(value)) {
+          tried.add(value);
+          return await validateClipboardPhoto(value);
+        }
+      } catch (failure) {
+        error = failure;
+      }
+    }
+    throw error || new Error('Negli appunti non c’è una foto. Usa «Copia immagine» oppure «Copia indirizzo immagine».');
+  }
+
+  async function readClipboardPhoto() {
+    let items;
+    try {
+      items = await navigator.clipboard.read();
+    } catch {
+      throw new Error('Consenti l’incolla nel browser oppure carica la foto da «Modifica ricetta».');
+    }
+    const candidates = [];
+    for (const item of items) {
+      for (const type of item.types) {
+        if (type.startsWith('image/')) candidates.push(() => item.getType(type));
+      }
+    }
+    for (const type of clipboardTextTypes) {
+      for (const item of items) {
+        if (!item.types.includes(type)) continue;
+        candidates.push(async () => {
+          const blob = await item.getType(type);
+          return blob.size <= 17 * 1024 * 1024 ? clipboardPhotoAddress(type, await blob.text()) : null;
+        });
+      }
+    }
+    return firstClipboardPhoto(candidates);
   }
 
   photoPaste.addEventListener('click', () => {
@@ -798,21 +878,26 @@
       photoUrl.focus();
       return;
     }
-    prepareEditorPhoto(readClipboardPhoto(), true);
+    prepareEditorPhoto(readClipboardPhoto, true);
   });
 
   byId('edit-photo').addEventListener('paste', event => {
     const data = event.clipboardData;
     const photo = [...(data?.files || [])].find(file => file.type.startsWith('image/')) ||
       [...(data?.items || [])].find(item => item.kind === 'file' && item.type.startsWith('image/'))?.getAsFile();
-    if (!photo) return;
+    const candidates = photo ? [() => photo] : [];
+    for (const type of clipboardTextTypes) {
+      const address = clipboardPhotoAddress(type, data?.getData(type) || '');
+      if (address) candidates.push(() => address);
+    }
+    if (!candidates.length) return;
     event.preventDefault();
-    if (!editorSave.disabled) prepareEditorPhoto(photo, true);
+    if (!editorSave.disabled) prepareEditorPhoto(() => firstClipboardPhoto(candidates), true);
   });
 
   photoFile.addEventListener('change', () => {
     const file = photoFile.files[0];
-    if (file && !editorSave.disabled) prepareEditorPhoto(file);
+    if (file && !editorSave.disabled) prepareEditorPhoto(() => resizePhoto(file));
   });
 
   function openRecipeEditor() {
@@ -854,7 +939,7 @@
     pasteRecipePhoto.disabled = editButton.disabled = saveButton.disabled = true;
     recipePhotoFeedback.textContent = 'Sto incollando la foto…';
     try {
-      const image = await resizePhoto(await readClipboardPhoto());
+      const image = await readClipboardPhoto();
       if (current !== entry) return;
       const updated = {...entry, recipe:{...entry.recipe, image}};
       if (saved) {
