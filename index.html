@@ -148,6 +148,12 @@
   .caption-paste summary{cursor:pointer;font-size:.88rem;font-weight:700;width:fit-content;padding:.35rem 0}
   .caption-paste label{margin-top:.55rem}
   .caption-paste textarea{display:block;resize:vertical}
+  #paste-screenshot{margin-top:.65rem}
+  #screenshot-feedback:empty{display:none}
+  .pasted-screenshots{display:flex;flex-wrap:wrap;gap:.65rem;list-style:none;padding:0;margin:.75rem 0}
+  .pasted-screenshots li{display:grid;gap:.3rem;width:7rem}
+  .pasted-screenshots img{width:100%;height:7rem;object-fit:contain;background:var(--white)}
+  .pasted-screenshots button{font-size:.85rem}
 </style>
 </head>
 <body>
@@ -164,6 +170,11 @@
         <summary>Hai uno screenshot della descrizione?</summary>
         <label for="caption-screenshots">Carica fino a 4 screenshot</label>
         <input id="caption-screenshots" type="file" accept="image/*" multiple>
+        <button class="quiet" id="paste-screenshot" type="button">Incolla screenshot</button>
+        <label for="screenshot-paste-field">Oppure tieni premuto qui e scegli Incolla</label>
+        <textarea id="screenshot-paste-field" rows="1" placeholder="Incolla lo screenshot qui" aria-describedby="screenshot-feedback"></textarea>
+        <p id="screenshot-feedback" role="status"></p>
+        <ul id="pasted-screenshots" class="pasted-screenshots" aria-label="Screenshot incollati" hidden></ul>
         <label for="caption-input">Descrizione del video</label>
         <textarea id="caption-input" rows="4" maxlength="12000" placeholder="Se hai già il testo, puoi incollarlo qui."></textarea>
       </details>
@@ -760,12 +771,12 @@
     refreshPhotoEditor();
     photoUrl.focus();
   });
-  async function prepareEditorPhoto(preparePhoto, pasted = false) {
+  async function prepareEditorPhoto(photoPromise, pasted = false) {
     editorSave.disabled = editorCancel.disabled = true;
-    photoFile.disabled = photoUrl.disabled = photoRemove.disabled = photoPaste.disabled = true;
+    photoFile.disabled = photoUrl.disabled = photoRemove.disabled = true;
     photoFeedback(pasted ? 'Sto incollando la foto…' : 'Sto preparando la foto…');
     try {
-      const image = await preparePhoto();
+      const image = await photoPromise;
       uploadedPhoto = https(image) ? null : image;
       photoUrl.value = https(image) ? image : '';
       if (pasted) photoFile.value = '';
@@ -774,9 +785,10 @@
     } catch (error) {
       if (!pasted) photoFile.value = '';
       photoFeedback(error.message);
+      if (pasted) setTimeout(() => photoUrl.focus(), 0);
     } finally {
       editorSave.disabled = editorCancel.disabled = false;
-      photoFile.disabled = photoUrl.disabled = photoRemove.disabled = photoPaste.disabled = false;
+      photoFile.disabled = photoUrl.disabled = photoRemove.disabled = false;
     }
   }
 
@@ -803,10 +815,10 @@
     }
   }
 
-  async function validateClipboardPhoto(address) {
+  async function validateClipboardPhoto(address, maxSide) {
     if (address.startsWith('data:')) {
       const response = await fetch(address);
-      return resizePhoto(await response.blob());
+      return resizePhoto(await response.blob(), maxSide);
     }
     return new Promise((resolve, reject) => {
       const image = new Image();
@@ -828,16 +840,16 @@
     });
   }
 
-  async function firstClipboardPhoto(candidates) {
+  async function firstClipboardPhoto(candidates, maxSide = 960) {
     let error;
     const tried = new Set();
     for (const read of candidates) {
       try {
         const value = await read();
-        if (value instanceof Blob) return await resizePhoto(value);
+        if (value instanceof Blob) return await resizePhoto(value, maxSide);
         if (value && !tried.has(value)) {
           tried.add(value);
-          return await validateClipboardPhoto(value);
+          return await validateClipboardPhoto(value, maxSide);
         }
       } catch (failure) {
         error = failure;
@@ -846,12 +858,12 @@
     throw error || new Error('Negli appunti non c’è una foto. Usa «Copia immagine» oppure «Copia indirizzo immagine».');
   }
 
-  async function readClipboardPhoto() {
+  async function readClipboardPhoto(maxSide = 960) {
     let items;
     try {
       items = await navigator.clipboard.read();
     } catch {
-      throw new Error('Consenti l’incolla nel browser oppure carica la foto da «Modifica ricetta».');
+      throw new Error('Tieni premuto nel campo di incolla e scegli «Incolla», oppure consenti l’accesso agli appunti.');
     }
     const candidates = [];
     for (const item of items) {
@@ -868,7 +880,7 @@
         });
       }
     }
-    return firstClipboardPhoto(candidates);
+    return firstClipboardPhoto(candidates, maxSide);
   }
 
   photoPaste.addEventListener('click', () => {
@@ -878,26 +890,115 @@
       photoUrl.focus();
       return;
     }
-    prepareEditorPhoto(readClipboardPhoto, true);
+    // Request clipboard access synchronously inside the tap, before disabling controls.
+    const photo = readClipboardPhoto();
+    prepareEditorPhoto(photo, true);
   });
 
-  byId('edit-photo').addEventListener('paste', event => {
-    const data = event.clipboardData;
-    const photo = [...(data?.files || [])].find(file => file.type.startsWith('image/')) ||
-      [...(data?.items || [])].find(item => item.kind === 'file' && item.type.startsWith('image/'))?.getAsFile();
-    const candidates = photo ? [() => photo] : [];
+  function pastedPhotoCandidates(data) {
+    const files = [...(data?.files || [])].filter(file => file.type.startsWith('image/'));
+    if (!files.length) {
+      for (const item of data?.items || []) {
+        if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    const candidates = files.map(file => () => file);
     for (const type of clipboardTextTypes) {
       const address = clipboardPhotoAddress(type, data?.getData(type) || '');
       if (address) candidates.push(() => address);
     }
+    return candidates;
+  }
+
+  byId('edit-photo').addEventListener('paste', event => {
+    const candidates = pastedPhotoCandidates(event.clipboardData);
     if (!candidates.length) return;
     event.preventDefault();
-    if (!editorSave.disabled) prepareEditorPhoto(() => firstClipboardPhoto(candidates), true);
+    if (!editorSave.disabled) prepareEditorPhoto(firstClipboardPhoto(candidates), true);
   });
 
   photoFile.addEventListener('change', () => {
     const file = photoFile.files[0];
-    if (file && !editorSave.disabled) prepareEditorPhoto(() => resizePhoto(file));
+    if (file && !editorSave.disabled) prepareEditorPhoto(resizePhoto(file));
+  });
+
+  const screenshotFile = byId('caption-screenshots');
+  const screenshotPaste = byId('paste-screenshot');
+  const screenshotField = byId('screenshot-paste-field');
+  const screenshotFeedback = byId('screenshot-feedback');
+  const screenshotList = byId('pasted-screenshots');
+  let pastedScreenshots = [];
+
+  function renderPastedScreenshots() {
+    screenshotList.replaceChildren();
+    screenshotList.hidden = !pastedScreenshots.length;
+    pastedScreenshots.forEach((image, index) => {
+      const row = document.createElement('li');
+      const preview = document.createElement('img');
+      preview.src = image;
+      preview.alt = 'Screenshot incollato ' + (index + 1);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'quiet';
+      remove.textContent = 'Rimuovi';
+      remove.setAttribute('aria-label', 'Rimuovi screenshot ' + (index + 1));
+      remove.disabled = button.disabled;
+      remove.addEventListener('click', () => {
+        if (button.disabled) return;
+        pastedScreenshots.splice(index, 1);
+        renderPastedScreenshots();
+        screenshotFeedback.textContent = '';
+      });
+      row.append(preview, remove);
+      screenshotList.append(row);
+    });
+  }
+
+  async function addPastedScreenshot(photo) {
+    button.disabled = screenshotFile.disabled = true;
+    screenshotFeedback.textContent = 'Sto preparando lo screenshot…';
+    try {
+      let image = await photo;
+      if (https(image)) {
+        const response = await fetch(image, {credentials:'omit', referrerPolicy:'no-referrer'});
+        if (!response.ok) throw new Error('Impossibile leggere lo screenshot dal link. Copia l’immagine oppure caricala.');
+        image = await resizePhoto(await response.blob(), 1600);
+      }
+      if (screenshotFile.files.length + pastedScreenshots.length >= 4) {
+        throw new Error('Puoi aggiungere al massimo 4 screenshot in totale.');
+      }
+      pastedScreenshots.push(image);
+      screenshotField.value = '';
+      screenshotFeedback.textContent = 'Screenshot aggiunto.';
+    } catch (error) {
+      screenshotFeedback.textContent = error instanceof TypeError
+        ? 'Copia lo screenshot come immagine oppure caricalo dal dispositivo.'
+        : error.message;
+      screenshotField.focus();
+    } finally {
+      button.disabled = screenshotFile.disabled = false;
+      renderPastedScreenshots();
+    }
+  }
+
+  screenshotPaste.addEventListener('click', () => {
+    if (button.disabled) return;
+    if (!navigator.clipboard?.read) {
+      screenshotFeedback.textContent = 'Tieni premuto nel campo qui sotto e scegli «Incolla».';
+      screenshotField.focus();
+      return;
+    }
+    const photo = readClipboardPhoto(1600);
+    addPastedScreenshot(photo);
+  });
+
+  byId('caption-paste').addEventListener('paste', event => {
+    const candidates = pastedPhotoCandidates(event.clipboardData);
+    if (!candidates.length) return;
+    event.preventDefault();
+    if (!button.disabled) addPastedScreenshot(firstClipboardPhoto(candidates, 1600));
   });
 
   function openRecipeEditor() {
@@ -1011,8 +1112,8 @@
     const caption = byId('caption-input').value.trim();
     const selected = [...byId('caption-screenshots').files];
     try {
-      if (selected.length > 4) throw new Error('Carica al massimo 4 screenshot.');
-      const screenshots = [];
+      if (selected.length + pastedScreenshots.length > 4) throw new Error('Carica al massimo 4 screenshot in totale.');
+      const screenshots = pastedScreenshots.map(image => image.split(',')[1]);
       for (const file of selected) {
         const dataUrl = await resizePhoto(file, 1600);
         screenshots.push(dataUrl.split(',')[1]);
@@ -1034,6 +1135,9 @@
       status.textContent = 'Ricetta importata.';
       byId('caption-input').value = '';
       byId('caption-screenshots').value = '';
+      pastedScreenshots = [];
+      renderPastedScreenshots();
+      screenshotFeedback.textContent = '';
       byId('caption-paste').open = false;
     } catch (error) {
       status.textContent = error instanceof SyntaxError || error instanceof TypeError
