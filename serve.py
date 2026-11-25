@@ -323,6 +323,9 @@ class Handler(BaseHTTPRequestHandler):
         except TranslationQuotaExceeded as error:
             self.reply(429, json.dumps({"error": str(error)}).encode())
             return
+        except CaptionExtractionFailed as error:
+            self.reply(502, json.dumps({"error": str(error)}).encode())
+            return
         except TranslationUnavailable:
             message = "Ricetta trovata. Per elaborarla in italiano, configura GEMINI_API_KEY su Render."
             self.reply(503, json.dumps({"error": message}).encode())

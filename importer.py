@@ -472,11 +472,11 @@ def import_recipe(url, *, caption_override=None, screenshots=()):
     if os.environ.get("GEMINI_API_KEY"):
         try:
             extracted = translate(caption_record, allow_missing=True, screenshots=screenshots)
-        except TranslationQuotaExceeded:
+        except (TranslationQuotaExceeded, CaptionExtractionFailed):
             raise
         except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
             raise CaptionExtractionFailed(
-                "Descrizione trovata, ma non sono riuscito a elaborarla. Riprova tra poco."
+                "Gemini ha restituito una scheda non leggibile. Riprova con il testo completo o uno screenshot più chiaro."
             ) from error
         if extracted["scheda"]:
             return {**caption_record, "scheda": extracted["scheda"]}
@@ -568,6 +568,8 @@ def translate(record, *, allow_missing=False, screenshots=()):
         "e usa null per i dati assenti. Non inventare dosi o passaggi. "
         "Se la fonte è già in italiano, mantienila in italiano. "
         "Usa i gradi Celsius e traduci i nomi comuni degli ingredienti. "
+        "Imposta ricetta_presente a true quando puoi estrarre la ricetta. "
+        "Per una fonte senza ricetta usa false, ingredienti e passaggi vuoti. "
         "Aggiungi categorie come lista di codici tra: " + ", ".join(CATEGORY_RULES) + ". "
         "Assegna solo categorie giustificate dalla fonte. Usa colazione per ricette "
         "presentate come colazione o tipiche della colazione. Usa vegano o vegetariano solo se "
@@ -595,7 +597,22 @@ def translate(record, *, allow_missing=False, screenshots=()):
     body = {
         "systemInstruction": {"parts": [{"text": instructions}]},
         "contents": [{"role": "user", "parts": parts}],
-        "generationConfig": {"responseMimeType": "application/json"},
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseJsonSchema": {
+                "type": "object",
+                "properties": {
+                    "ricetta_presente": {"type": "boolean"},
+                    "titolo": {"type": ["string", "null"]},
+                    "ingredienti": {"type": "array", "items": {"type": "string"}},
+                    "passaggi": {"type": "array", "items": {"type": "string"}},
+                    "porzioni": {"type": ["string", "null"]},
+                    "tempi": {"type": ["string", "null"]},
+                    "categorie": {"type": "array", "items": {"type": "string", "enum": list(CATEGORY_RULES)}},
+                },
+                "required": ["ricetta_presente", "titolo", "ingredienti", "passaggi"],
+            },
+        },
     }
     request = Request(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent",
@@ -608,9 +625,24 @@ def translate(record, *, allow_missing=False, screenshots=()):
     except HTTPError as error:
         if error.code == 429:
             raise TranslationQuotaExceeded("Limite Gemini raggiunto. Riprova più tardi.") from error
-        raise
+        try:
+            details = json.load(error).get("error", {})
+            reason = str(details.get("message", "")).casefold()
+        except (ValueError, AttributeError):
+            reason = ""
+        if error.code in {401, 403} or any(word in reason for word in ("api key", "api_key", "expired", "leaked")):
+            message = "Gemini non accetta la chiave API. Controlla GEMINI_API_KEY su Render e la chiave in Google AI Studio."
+        elif error.code == 404:
+            message = "Il modello Gemini configurato non è disponibile per questa chiave API."
+        elif error.code >= 500 or error.code == 408:
+            message = "Gemini è temporaneamente non disponibile. Riprova tra poco."
+        else:
+            message = f"Gemini ha rifiutato la richiesta (HTTP {error.code}). Controlla la configurazione del servizio."
+        raise CaptionExtractionFailed(message) from error
+    except OSError as error:
+        raise CaptionExtractionFailed("Il collegamento a Gemini non è riuscito o è scaduto. Riprova tra poco.") from error
     if candidate.get("finishReason") != "STOP":
-        raise ValueError("La risposta Gemini è incompleta.")
+        raise CaptionExtractionFailed("Gemini ha interrotto la lettura della ricetta. Riprova con il testo completo o uno screenshot più chiaro.")
     translated = json.loads("".join(
         part.get("text", "") for part in candidate["content"]["parts"] if not part.get("thought")
     ))
