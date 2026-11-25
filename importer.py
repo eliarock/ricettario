@@ -7,6 +7,8 @@ import json
 import os
 import re
 import socket
+import ssl
+from time import sleep
 from html import unescape
 from html.parser import HTMLParser
 from unicodedata import normalize
@@ -551,6 +553,34 @@ def suggested_categories(record, sheet):
     return [category for category in CATEGORY_RULES if category in categories]
 
 
+def gemini_response(request):
+    for attempt in range(2):
+        try:
+            with urlopen(request, timeout=90) as response:
+                return json.load(response)
+        except HTTPError as error:
+            if attempt == 0 and error.code in {408, 500, 502, 503, 504}:
+                sleep(1)
+                continue
+            raise
+        except OSError as error:
+            reason = getattr(error, "reason", error)
+            if attempt == 0 and not isinstance(reason, ssl.SSLError):
+                sleep(1)
+                continue
+            # Never log request headers, the API key or the source content.
+            print(f"Gemini connessione: {type(reason).__name__}, errno={getattr(reason, 'errno', None)}", flush=True)
+            if isinstance(reason, (TimeoutError, socket.timeout)):
+                message = "Gemini non ha risposto entro 90 secondi, anche dopo il secondo tentativo."
+            elif isinstance(reason, socket.gaierror):
+                message = "Render non riesce a risolvere l’indirizzo del servizio Gemini (DNS)."
+            elif isinstance(reason, ssl.SSLError):
+                message = "Render non riesce a verificare la connessione protetta a Gemini (TLS)."
+            else:
+                message = "La connessione tra Render e Gemini si è interrotta anche dopo il secondo tentativo."
+            raise CaptionExtractionFailed(message) from error
+
+
 def translate(record, *, allow_missing=False, screenshots=()):
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
@@ -620,8 +650,7 @@ def translate(record, *, allow_missing=False, screenshots=()):
         headers={"x-goog-api-key": key, "Content-Type": "application/json"},
     )
     try:
-        with urlopen(request, timeout=45) as response:
-            candidate = json.load(response)["candidates"][0]
+        candidate = gemini_response(request)["candidates"][0]
     except HTTPError as error:
         if error.code == 429:
             raise TranslationQuotaExceeded("Limite Gemini raggiunto. Riprova più tardi.") from error
@@ -639,8 +668,6 @@ def translate(record, *, allow_missing=False, screenshots=()):
         else:
             message = f"Gemini ha rifiutato la richiesta (HTTP {error.code}). Controlla la configurazione del servizio."
         raise CaptionExtractionFailed(message) from error
-    except OSError as error:
-        raise CaptionExtractionFailed("Il collegamento a Gemini non è riuscito o è scaduto. Riprova tra poco.") from error
     if candidate.get("finishReason") != "STOP":
         raise CaptionExtractionFailed("Gemini ha interrotto la lettura della ricetta. Riprova con il testo completo o uno screenshot più chiaro.")
     translated = json.loads("".join(
