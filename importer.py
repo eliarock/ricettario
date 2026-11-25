@@ -559,7 +559,15 @@ def gemini_response(request):
             with urlopen(request, timeout=90) as response:
                 return json.load(response)
         except HTTPError as error:
-            if attempt == 0 and error.code in {408, 500, 502, 503, 504}:
+            model = request.full_url.rsplit("/", 1)[-1].split(":", 1)[0]
+            print(f"Gemini servizio: modello={model}, HTTP={error.code}", flush=True)
+            if attempt == 0 and error.code in {404, 408, 500, 502, 503, 504}:
+                request = Request(
+                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+                    data=request.data,
+                    headers=dict(request.header_items()),
+                )
+                error.close()
                 sleep(1)
                 continue
             raise
@@ -664,7 +672,7 @@ def translate(record, *, allow_missing=False, screenshots=()):
         elif error.code == 404:
             message = "Il modello Gemini configurato non è disponibile per questa chiave API."
         elif error.code >= 500 or error.code == 408:
-            message = "Gemini è temporaneamente non disponibile. Riprova tra poco."
+            message = f"Gemini non è disponibile anche dopo il tentativo alternativo (HTTP {error.code}). Riprova tra poco."
         else:
             message = f"Gemini ha rifiutato la richiesta (HTTP {error.code}). Controlla la configurazione del servizio."
         raise CaptionExtractionFailed(message) from error
